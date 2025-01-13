@@ -18,6 +18,7 @@
 ## Configuration
 ### Configuration File (`config.env`)
 Stores settings like:
+- **STANDARD_STADT**: Default city.
 - **STANDARD_KLASSE**: Default class.
 - **STANDARD_SCHULNUMMER**: School number.
 - **DEBUGGING**: Flag for debugging mode.
@@ -26,6 +27,7 @@ If the file doesn't exist, it will be created automatically with default values.
 
 ### Default Configuration
 ```ini
+STANDARD_STADT=None
 STANDARD_KLASSE=None
 STANDARD_SCHULNUMMER=None
 DEBUGGING=True
