@@ -6,7 +6,7 @@
 ## Features
 - Fetch timetables from WebUntis.
 - Generate and open ICS calendar files in Outlook.
-- Modify class, school number, and debugging settings.
+- Modify city, class, school number, and debugging settings.
 - User-friendly text-based menus.
 
 ## Prerequisites
