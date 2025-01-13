@@ -182,7 +182,20 @@ def fetch_timetable():
     else:
         print("Kein Stundenplan gefunden.") 
     
+    if debug_mode:
+        choice = input("Should this version be built? (Y/N): ")
+        if choice.lower() == 'y':
+            # start build.bat
+            os.system("build.bat")
+            # check if build was successful
+            if not os.path.exists(".\dist\WebLook.exe"):
+                print("Build failed.")
+            else:
+                print("Build successful.")
+        
     input("\nPress Enter to continue...")
+    
+        
     
 
     
