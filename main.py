@@ -1,5 +1,6 @@
 
 import requests
+import re
 import datetime
 import urllib.parse
 import json
@@ -181,6 +182,9 @@ def fetch_timetable():
         
     else:
         print("Kein Stundenplan gefunden.") 
+        
+    #print(school["loginName"])
+    x_crsf_token = get_x_crsf_token(server=school["server"], loginName=login_name, school=school)
     
     if debug_mode:
         choice = input("Should this version be built? (Y/N): ")
@@ -361,6 +365,34 @@ def get_headers(tenant_id, schoolname, server, login_name):
         'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
     }
     return headers
+
+def get_x_crsf_headers(tenant_id, schoolname, server, login_name):
+    #print(schoolname)
+    
+    jsession_id, trace_id = get_cookies(server=server, loginName=login_name)
+    sleek_session = generate_sleek_session()
+    if debug_mode:
+        print("TenantID: " + tenant_id)
+        print("jsession: " + jsession_id)
+    headers = {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-encoding': 'gzip, deflate, br, zstd',
+        'accept-language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+        'priority': 'u=1, i',
+        'referer': f'https://{server}/WebUntis',
+        'cookie': f'JSESSIONID={jsession_id}; schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; traceId={trace_id}; _sleek_session={sleek_session}',
+        'referer': 'https://webuntis.com/',
+        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 OPR/114.0.0.0'
+    }
+    return headers
 def get_class_id_headers(tenant_id, schoolname, server, login_name):
     
     jsession_id = jsessionid #get_cookies(server=server, loginName=login_name)
@@ -385,6 +417,31 @@ def get_class_id_headers(tenant_id, schoolname, server, login_name):
         #"cookie": f"c0261b8e8a54040ba4c7dca9e81e3a451e98f870; schoolname=\"_{schoolname}\"; Tenant-Id=\"{tenant_id}\"; traceId={trace_id}; JSESSIONID={jsession_id}; _sleek_session={sleek_session}",
         
     return headers
+
+
+def get_x_crsf_token(server, loginName, school):
+    url = f"https://{server}/WebUntis/?school={loginName}#/basic/login"
+    headers = get_x_crsf_headers(tenant_id=school["tenantId"], schoolname=school["loginName"], server=school["server"], login_name=school["loginSchool"])
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        html_content = response.text
+        with open("./file.txt", "w") as f:
+            f.write(html_content)
+        # Define the pattern to extract the CSRF token
+        csrf_token_pattern = r'"csrfToken":\s*"([^"]+)"'
+
+        # Search for the CSRF token using regex
+        match = re.search(csrf_token_pattern, html_content)
+
+        if match:
+            csrf_token = match.group(1)
+            if debug_mode:
+                print(f"CSRF Token: {csrf_token}")
+            return csrf_token
+        else:
+            print("CSRF Token not found")
+    else:
+        print(f"Failed to fetch page, status code: {response.status_code}")
 
 
 def get_cookies(server, loginName):
@@ -500,8 +557,6 @@ def get_schools(city):
     schools = json["result"]["schools"]
     counter = 0
     school_data = []
-    if debug_mode:
-        print(schools)
     for school in schools:
         if debug_mode:
             print(school)
