@@ -117,8 +117,8 @@ def settings_menu():
             input("\nPress Enter to return to the menu...")
             
 def fetch_timetable():
-    config = read_config_env()
     
+    config = read_config_env()
     debugging = config.get("DEBUGGING", False)
     global standard_klasse
     global standard_schulnummer
@@ -128,6 +128,8 @@ def fetch_timetable():
     global traceid
     global headers
     global school
+    global is_default_usage
+    
     standard_stadt = config.get("STANDARD_STADT")
     standard_klasse = config.get("STANDARD_KLASSE", "None")
     standard_schulnummer = config.get("STANDARD_SCHULNUMMER", "None")
@@ -140,15 +142,24 @@ def fetch_timetable():
     else:
         print("Debugging mode is disabled.")
         debug_mode = False
+    
+    # is default usage
+    
+    choiche = str(input("Sollen die Standardeinstellungen verwendet werden? (Y/N): "))
+    if choiche.lower() == "y":
+        is_default_usage = True
+    elif choiche.lower() == "n":
+        is_default_usage = False
         
     #get_cookies()
-    if standard_stadt == "None": 
+    if standard_stadt == "None" or standard_stadt == "" or is_default_usage == False: 
         city = str(input("Bitte geben Sie die Stadt der Schule ein z.B Ingolstadt: "))
-        choiche = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ")
+        if standard_stadt == "None" or standard_stadt == "":
+            choiche = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ")
         if choiche.lower() == 'y':
             update_config_env('STANDARD_STADT', city)
             print("Standard Stadt gespeichert.")
-    else:
+    elif is_default_usage:
         city = standard_stadt
     school = get_schools(city=city)
     login_name = school["loginSchool"]
@@ -168,8 +179,6 @@ def fetch_timetable():
         else:
             print("Ungültige Eingabe, die Datei wurde nicht geöffnet.")
         
-        
-        
     else:
         print("Kein Stundenplan gefunden.") 
     
@@ -181,16 +190,6 @@ def fetch_timetable():
 # Funktion zum Abrufen von Daten für x Wochen
 def fetch_data_for_next_weeks(school, class_id, week_count):
     # Hole das aktuelle Datum
-    # current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    
-    # # Hole den Beginn der aktuellen Woche, der nächsten Woche und der übernächsten Woche
-    # start_of_current_week = get_start_of_week(current_date)
-    # start_of_next_week = get_start_of_week((datetime.datetime.now() + datetime.timedelta(weeks=1)).strftime("%Y-%m-%d"))
-    # start_of_week_after_next = get_start_of_week((datetime.datetime.now() + datetime.timedelta(weeks=2)).strftime("%Y-%m-%d"))
-    
-    # weeks_to_fetch = [start_of_current_week, start_of_next_week, start_of_week_after_next]
-    
-    # Get the start of the current week
     current_date = datetime.datetime.now()
     start_of_current_week = get_start_of_week(current_date)
     # Generate the start dates for the specified number of weeks
@@ -203,11 +202,10 @@ def fetch_data_for_next_weeks(school, class_id, week_count):
     if debug_mode:
         print(weeks_to_fetch)
 
-    # Hole die Daten für die nächsten drei Wochen
+
     all_school_days = []
     server = school["server"]
     for week_start in weeks_to_fetch:
-        #api_url = f"https://{server}/WebUntis/api/public/timetable/weekly/data?elementType=1&date={week_start}&formatId=2&filter.departmentId=-1"
         api_url = f"https://{server}/WebUntis/api/public/timetable/weekly/data?elementType=1&elementId={class_id}&date={week_start}&formatId=2&filter.departmentId=-1"
         print(f"Hole Daten für die Woche, die am {week_start} beginnt...")
 
@@ -303,7 +301,7 @@ def get_start_of_week(date_str):
 
 
 def generate_sleek_session():
-    # Get the current time in ISO 8601 format (UTC)
+    # Get the current time in UTC format
     current_time = datetime.datetime.utcnow().isoformat() + "Z"
     
     # Create the dictionary with the 'init' timestamp
@@ -424,33 +422,18 @@ def get_classes_from_text(school):
             class_data.append(class_info)
             current_class_name = class_info["displayName"]
             # Print class information
-            if standard_klasse == "None":
+            if standard_klasse == "None"  or standard_klasse == "" or is_default_usage == False:
                 print(f"""Anzeigename: {current_class_name}
                 """)
                 
-            
-                
-
-        # # Input to search for class by 'shortName'
-        # if standard_klasse == "None":
-        #     class_short_name = input("Bitte geben Sie den Klassennamen (Kurzname) ein: ")
-        # else:
-        #     class_short_name = standard_klasse.strip()
-        #     print(class_short_name)
-        # # Search for class by 'shortName'
-        # matching_class = next((cls for cls in class_data if cls["shortName"] == class_short_name), None)
         
-        # if matching_class:
-        #     print(f"Alles klar. {matching_class['displayName']} wurde ausgewählt.")
-        #     return matching_class["id"]
-        # else:
-        #     print("Klassennamen ungültig oder nicht gefunden. Bitte versuchen Sie es erneut.")
-        #     return None
-        
-        # Input to search for class by 'shortName'
-        
-        if standard_klasse == "None":
+        if standard_klasse == "None"or standard_klasse == "" or is_default_usage == False:
             class_short_name = input("Bitte geben Sie den Klassennamen (Kurzname) ein: ")
+            if standard_klasse == "None" or standard_klasse == "":
+                choiche = input("Soll der Klassennamen als Standard gespeichert werden? (Y/N):")
+            if choiche.lower() == "y":
+                update_config_env("STANDARD_KLASSE", class_short_name)
+                print("Standard Klassenname gespeichert.")
         else:
             class_short_name = standard_klasse.strip()
         # Search for class by 'shortName'
@@ -512,7 +495,7 @@ def get_schools(city):
             "loginSchool": school["loginName"]
         })
         school_data[counter]["displayName"]
-        if standard_schulnummer == "None":
+        if standard_schulnummer == "None" or standard_schulnummer == "" or is_default_usage == False:
             print(f"""
                 Nr.{counter}
                 Anzeigename: {school_data[counter]["displayName"]}
@@ -523,12 +506,13 @@ def get_schools(city):
             """)
         #print("Server URL: " + school_urls[counter])
         counter += 1
-    if standard_schulnummer == "None":
+    if standard_schulnummer == "None"  or standard_schulnummer == "" or is_default_usage == False:
         school_number = int(input("Bitte geben sie die Schulnummer ein: "))
-        choice = input("Soll diese Schulnummer als Standard gespeichert werden? (Y/N): ")
+        if standard_schulnummer == "None" or standard_schulnummer == "":
+            choice = input("Soll diese Schulnummer als Standard gespeichert werden? (Y/N): ")
         if choice.lower() == "y":
             update_config_env('STANDARD_SCHULNUMMER', school_number)
-            print("Standard Stadt gespeichert.")
+            print("Standard Schulnummer gespeichert.")
         #eingaben überprüfen
         if 0 <= school_number < counter:
             print(f"Alles klar. {school_data[school_number]['displayName']} wurde ausgewählt.")
@@ -619,8 +603,8 @@ def get_school_days_subjects_teachers(json_data):
                 is_exam = False
 
             # Bestimme die Stunde und Minute, um die korrekte Startzeit zu berechnen
-            start_time = period.get('startTime', 0)  # Beispielwert, je nach API-Daten
-            end_time = period.get('endTime', 0)  # Beispielwert, je nach API-Daten
+            start_time = period.get('startTime', 0)  
+            end_time = period.get('endTime', 0)
 
             # Umwandlung der startTime und endTime in Stunden und Minuten
             start_hour = start_time // 100
