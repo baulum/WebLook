@@ -144,6 +144,10 @@ def fetch_timetable():
     #get_cookies()
     if standard_stadt == "None": 
         city = str(input("Bitte geben Sie die Stadt der Schule ein z.B Ingolstadt: "))
+        choiche = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ")
+        if choiche.lower() == 'y':
+            update_config_env('STANDARD_STADT', city)
+            print("Standard Stadt gespeichert.")
     else:
         city = standard_stadt
     school = get_schools(city=city)
@@ -521,6 +525,10 @@ def get_schools(city):
         counter += 1
     if standard_schulnummer == "None":
         school_number = int(input("Bitte geben sie die Schulnummer ein: "))
+        choice = input("Soll diese Schulnummer als Standard gespeichert werden? (Y/N): ")
+        if choice.lower() == "y":
+            update_config_env('STANDARD_SCHULNUMMER', school_number)
+            print("Standard Stadt gespeichert.")
         #eingaben überprüfen
         if 0 <= school_number < counter:
             print(f"Alles klar. {school_data[school_number]['displayName']} wurde ausgewählt.")
@@ -646,7 +654,7 @@ def main():
             settings_menu()
         
         elif choice == '3':
-            print("Exiting Config Manager. Goodbye!")
+            print("Exiting WebLook. See you soon!")
             break
         
         else:
