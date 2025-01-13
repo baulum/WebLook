@@ -6,7 +6,7 @@ import json
 import os
 import base64
 from termcolor import colored
-from dotenv import load_dotenv, find_dotenv
+#from dotenv import load_dotenv, find_dotenv
 import subprocess
 
 def display_main_menu():
@@ -151,10 +151,11 @@ def fetch_timetable():
     headers = get_headers(tenant_id=school["tenantId"], schoolname=school["loginName"], server=school["server"], login_name=login_name)
     class_id = get_classes_from_text(school)
     if (class_id is not None):
-        # Daten für die nächsten drei Wochen abrufen und eine einzelne ICS-Datei für die gesamte Woche erstellen
-        school_days_subjects_teachers = fetch_data_for_next_weeks(school=school, class_id=class_id)
-        create_ics_file_for_week(school_days_subjects_teachers, schoolname=login_name)
         
+        # Daten für die nächsten x Wochen abrufen und eine einzelne ICS-Datei für die gesamte Woche erstellen
+        week_count = int(input("Von wie vielen Wochen sollen die Stundenpläne heruntergeladen werden: ").strip())
+        school_days_subjects_teachers = fetch_data_for_next_weeks(school=school, class_id=class_id, week_count=week_count)
+        create_ics_file_for_week(school_days_subjects_teachers, schoolname=login_name)
         open_in_outlook = input("Soll die Datei in Outlook geöffnet werden? (Y/N): ")
         if open_in_outlook.lower() == 'y':
             open_ics_with_default_app(global_file_path)
@@ -173,17 +174,30 @@ def fetch_timetable():
 
     
 
-# Funktion zum Abrufen von Daten für die aktuelle Woche und die nächsten zwei Wochen
-def fetch_data_for_next_weeks(school, class_id):
+# Funktion zum Abrufen von Daten für x Wochen
+def fetch_data_for_next_weeks(school, class_id, week_count):
     # Hole das aktuelle Datum
-    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+    # current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     
-    # Hole den Beginn der aktuellen Woche, der nächsten Woche und der übernächsten Woche
+    # # Hole den Beginn der aktuellen Woche, der nächsten Woche und der übernächsten Woche
+    # start_of_current_week = get_start_of_week(current_date)
+    # start_of_next_week = get_start_of_week((datetime.datetime.now() + datetime.timedelta(weeks=1)).strftime("%Y-%m-%d"))
+    # start_of_week_after_next = get_start_of_week((datetime.datetime.now() + datetime.timedelta(weeks=2)).strftime("%Y-%m-%d"))
+    
+    # weeks_to_fetch = [start_of_current_week, start_of_next_week, start_of_week_after_next]
+    
+    # Get the start of the current week
+    current_date = datetime.datetime.now()
     start_of_current_week = get_start_of_week(current_date)
-    start_of_next_week = get_start_of_week((datetime.datetime.now() + datetime.timedelta(weeks=1)).strftime("%Y-%m-%d"))
-    start_of_week_after_next = get_start_of_week((datetime.datetime.now() + datetime.timedelta(weeks=2)).strftime("%Y-%m-%d"))
-    
-    weeks_to_fetch = [start_of_current_week, start_of_next_week, start_of_week_after_next]
+    # Generate the start dates for the specified number of weeks
+    weeks_to_fetch = [start_of_current_week]
+    for i in range(1, week_count):
+        start_of_next_week = get_start_of_week((current_date + datetime.timedelta(weeks=i)).strftime("%Y-%m-%d"))
+        weeks_to_fetch.append(start_of_next_week)
+
+    # weeks_to_fetch now contains the start dates for the requested number of weeks
+    if debug_mode:
+        print(weeks_to_fetch)
 
     # Hole die Daten für die nächsten drei Wochen
     all_school_days = []
@@ -275,6 +289,10 @@ def open_ics_with_default_app(ics_file_path):
     
 # Funktion, um den Beginn der Woche zu ermitteln
 def get_start_of_week(date_str):
+    
+    if isinstance(date_str, datetime.datetime):
+        date_str = date_str.strftime("%Y-%m-%d")  # Convert datetime to string
+    
     date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
     start_of_week = date - datetime.timedelta(days=date.weekday())  # Montag der angegebenen Woche
     return start_of_week.strftime("%Y-%m-%d")
@@ -402,7 +420,7 @@ def get_classes_from_text(school):
             class_data.append(class_info)
             current_class_name = class_info["displayName"]
             # Print class information
-            if standard_klasse == "None".lower():
+            if standard_klasse == "None":
                 print(f"""Anzeigename: {current_class_name}
                 """)
                 
