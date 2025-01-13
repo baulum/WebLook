@@ -24,6 +24,7 @@ Stores settings like:
 - **DEBUGGING**: Flag for debugging mode.
 
 If the file doesn't exist, it will be created automatically with default values.
+If any of the values is not "None" than the user will be prompted to put it in the console.
 
 ### Default Configuration
 ```ini
