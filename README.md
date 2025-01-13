@@ -48,7 +48,7 @@ Options:
 3. **Exit**: Close the program.
 
 ### Fetching Timetable
-- Enter city, select school, and class, then fetch the timetable for the next three weeks.
+- Enter city, select school, class, and the amount of weeks to fetch. Then fetch the timetable for the requested weeks.
 - The `.ics` file will be saved and optionally opened in Outlook.
 
 ## Debugging
