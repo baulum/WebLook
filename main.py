@@ -251,6 +251,17 @@ def create_ics_file_for_week(school_days_subjects_teachers, schoolname, output_d
                 "STATUS:CONFIRMED",
                 "END:VEVENT"
             ])
+        elif lesson["is_additional"]:
+            ics_content.extend([
+                "BEGIN:VEVENT",
+                f"DTSTART:{event_start}",
+                f"DTEND:{event_end}",
+                f"SUMMARY:Ersatzstunde {lesson['subject']}",
+                f"DESCRIPTION:{event_description} Prüfung!",
+                f"LOCATION:{lesson['teacher']}",
+                "STATUS:CONFIRMED",
+                "END:VEVENT"
+            ])
         else:
             ics_content.extend([
                 "BEGIN:VEVENT",
@@ -597,9 +608,14 @@ def get_school_days_subjects_teachers(json_data):
                 teacher = 'Unbekannt'  # Falls keine Lehrerinformation vorhanden ist
             
             cellState = period.get("cellState", '')
+            if debug_mode:
+                print(f"{subject} : {cellState}")
             if cellState == "EXAM":
                 is_exam = True
+            elif cellState == "ADDITIONAL":
+                is_additional = True
             else:
+                is_additional = False
                 is_exam = False
 
             # Bestimme die Stunde und Minute, um die korrekte Startzeit zu berechnen
@@ -619,6 +635,7 @@ def get_school_days_subjects_teachers(json_data):
                 "subject": subject,
                 "teacher": teacher,
                 "is_exam": is_exam,
+                "is_additional": is_additional,
                 "start_time": datetime.time(start_hour, start_minute),
                 "end_time": datetime.time(end_hour, end_minute),
             })
