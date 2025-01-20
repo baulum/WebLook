@@ -35,19 +35,25 @@ def display_settings_menu():
     os.system('cls' if os.name == 'nt' else 'clear')
     print("Settings Menu:")
     print("1. View current settings")
-    print("2. Update STANDARD_STADT")
-    print("3. Update STANDARD_KLASSE")
-    print("4. Update STANDARD_SCHULNUMMER")
-    print("5. Update DEBUGGING")
-    print("6. Back to Main Menu")
+    print("2. Update Name")
+    print("3. Update Email")
+    print("4. Update Betrieb")
+    print("5. Update STANDARD_STADT")
+    print("6. Update STANDARD_KLASSE")
+    print("7. Update STANDARD_SCHULNUMMER")
+    print("8. Update DEBUGGING")
+    print("9. Back to Main Menu - Press 9 or Enter")
 
 def read_config_env(file_path='config.env'):
     config = {}
     default_settings = {
+        "NAME": "None",
+        "EMAIL": "None",
+        "BETRIEB": "None",
         "STANDARD_STADT" : "None",
         "STANDARD_KLASSE": "None",
         "STANDARD_SCHULNUMMER": "None",
-        "DEBUGGING": "True"
+        "DEBUGGING": "False"
     }
 
     try:
@@ -85,32 +91,60 @@ def settings_menu():
             for key, value in config.items():
                 print(f"{key} = {value}")
             input("\nPress Enter to return to the menu...")
-        
+
         elif choice == '2':
-            new_value = input("Enter new value for STANDARD_STADT: ")
-            update_config_env('STANDARD_STADT', new_value)
-            print("STANDARD_STADT updated successfully!")
+            new_value = input("Enter new name: ")
+            update_config_env('NAME', new_value)
+            print("Name updated successfully!")
             input("\nPress Enter to return to the menu...")
-        
+
         elif choice == '3':
-            new_value = input("Enter new value for STANDARD_KLASSE: ")
-            update_config_env('STANDARD_KLASSE', new_value)
-            print("STANDARD_KLASSE updated successfully!")
+            new_value = input("Enter new Email: ")
+            update_config_env('EMAIL', new_value)
+            print("Email updated successfully!")
             input("\nPress Enter to return to the menu...")
-        
         elif choice == '4':
-            new_value = input("Enter new value for STANDARD_SCHULNUMMER: ")
-            update_config_env('STANDARD_SCHULNUMMER', new_value)
-            print("STANDARD_SCHULNUMMER updated successfully!")
+            new_value = input("Enter new Betrieb: ")
+            update_config_env('BETRIEB', new_value)
+            print("Email updated successfully!")
             input("\nPress Enter to return to the menu...")
         
         elif choice == '5':
-            new_value = input("Enter new value for DEBUGGING (True/False): ")
-            update_config_env('DEBUGGING', new_value)
-            print("DEBUGGING updated successfully!")
+            new_value = input("Enter new value for STADT: ")
+            update_config_env('STANDARD_STADT', new_value)
+            print("STADT updated successfully!")
             input("\nPress Enter to return to the menu...")
         
         elif choice == '6':
+            new_value = input("Enter new value for KLASSE: ")
+            update_config_env('STANDARD_KLASSE', new_value)
+            print("KLASSE updated successfully!")
+            input("\nPress Enter to return to the menu...")
+        
+        elif choice == '7':
+            new_value = input("Enter new value for SCHULNUMMER: ")
+            update_config_env('STANDARD_SCHULNUMMER', new_value)
+            print("SCHULNUMMER updated successfully!")
+            input("\nPress Enter to return to the menu...")
+        
+        elif choice == '8':
+            config = read_config_env()
+            debugging = config.get('DEBUGGING', 'False')
+            
+
+            if debugging.lower() == 'true':
+                new_value = False
+            elif debugging.lower() == 'false':
+                new_value = True
+            elif debugging.lower() == '':
+                new_value = False
+            #new_value = input("Enter new value for DEBUGGING (True/False): ")
+            update_config_env('DEBUGGING', new_value)
+            print("DEBUGGING updated successfully!")
+            print(f"DEBUGGING = {new_value}")
+            input("\nPress Enter to return to the menu...")
+        
+        elif choice == '9' or choice == '':
             break
         
         else:
@@ -121,6 +155,9 @@ def fetch_timetable():
     
     config = read_config_env()
     debugging = config.get("DEBUGGING", False)
+    global name
+    global email
+    global betrieb
     global standard_klasse
     global standard_schulnummer
     global standard_stadt
@@ -131,21 +168,37 @@ def fetch_timetable():
     global school
     global is_default_usage
     
-    standard_stadt = config.get("STANDARD_STADT")
+
+    name = config.get("NAME", "None")
+    email = config.get("EMAIL", "None")
+    betrieb = config.get("BETRIEB", "None")
+    standard_stadt = config.get("STANDARD_STADT", "None")
     standard_klasse = config.get("STANDARD_KLASSE", "None")
     standard_schulnummer = config.get("STANDARD_SCHULNUMMER", "None")
     jsessionid = ""
     traceid = ""
     # Example logic based on configuration
     if debugging.lower() == 'true':
-        print("Debugging mode is enabled.")
+        print("Der Debugging Modus ist aktiviert.")
         debug_mode = True
     else:
-        print("Debugging mode is disabled.")
+        print("Der Debugging Modus ist deaktiviert.")
         debug_mode = False
     
     # is default usage
-    
+
+    if name == "None" or name == "":
+        choice = input("Bitte gib deinen Namen ein: ")
+        name = choice
+        update_config_env('NAME', choice)
+    if email == "None" or email == "":
+        choice = input("Bitte gib deine Email ein: ")
+        email = choice
+        update_config_env('EMAIL', choice)
+    if betrieb == "None" or betrieb == "":
+        choice = input("Bitte geben Sie den Namen ihres Arbeitsbetriebs ein: ")
+        betrieb = choice
+        update_config_env('BETRIEB', choice)
     choiche = str(input("Sollen die Standardeinstellungen verwendet werden? (Y/N): "))
     if choiche.lower() == "y":
         is_default_usage = True
@@ -171,7 +224,7 @@ def fetch_timetable():
         # Daten für die nächsten x Wochen abrufen und eine einzelne ICS-Datei für die gesamte Woche erstellen
         week_count = int(input("Von wie vielen Wochen sollen die Stundenpläne heruntergeladen werden: ").strip())
         school_days_subjects_teachers = fetch_data_for_next_weeks(school=school, class_id=class_id, week_count=week_count)
-        create_ics_file_for_week(school_days_subjects_teachers, schoolname=login_name)
+        create_ics_file_for_week(school_days_subjects_teachers, schoolname=login_name, school_data=school)
         open_in_outlook = input("Soll die Datei in Outlook geöffnet werden? (Y/N): ")
         if open_in_outlook.lower() == 'y':
             open_ics_with_default_app(global_file_path)
@@ -233,75 +286,129 @@ def fetch_data_for_next_weeks(school, class_id, week_count):
             all_school_days.extend(school_days_subjects_teachers)
     
     return all_school_days
-    
-def create_ics_file_for_week(school_days_subjects_teachers, schoolname, output_dir="kalender", ):
+
+def get_next_workday(date_obj):
+    next_day = date_obj + datetime.timedelta(days=1)
+    while next_day.weekday() > 4:  # 5=Sat, 6=Sun
+        next_day += datetime.timedelta(days=1)
+    return next_day
+
+def create_ics_file_for_week(school_days_subjects_teachers, schoolname, output_dir="kalender", school_data=None):
     if not os.path.exists(output_dir):
-        os.makedirs(output_dir)  # Erstelle Verzeichnis, falls es noch nicht existiert
+        os.makedirs(output_dir)
 
-    # Sortiere alle Stunden chronologisch nach Startzeit
     sorted_lessons = sorted(school_days_subjects_teachers, key=lambda x: (x["lesson_date"], x["start_time"]))
-
-    # Erstelle eine einzige ICS-Datei für die ganze Woche
     filename = f"{schoolname}_stundenplan_woche.ics"
     file_path = os.path.join(output_dir, filename)
 
-    # Beginne mit dem Erstellen des ICS-Dateiinhalts
+    choice = input("Soll eine Out Of Office Notiz erstellt werden? (Y/N): ")
+    create_oof = (choice.lower() == "y")
+
     ics_content = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "CALSCALE:GREGORIAN"
     ]
 
-    for lesson in sorted_lessons:
-        
-        event_start = datetime.datetime.combine(lesson["lesson_date"], lesson["start_time"]).strftime("%Y%m%dT%H%M00")
-        event_end = datetime.datetime.combine(lesson["lesson_date"], lesson["end_time"]).strftime("%Y%m%dT%H%M00")
-        event_description = f"{lesson['subject']} - {lesson['teacher']}"
-        if lesson["is_exam"]:
-            ics_content.extend([
-                "BEGIN:VEVENT",
-                f"DTSTART:{event_start}",
-                f"DTEND:{event_end}",
-                f"SUMMARY:Prüfung {lesson['subject']}",
-                f"DESCRIPTION:{event_description} Prüfung!",
-                f"LOCATION:{lesson['teacher']}",
-                "STATUS:CONFIRMED",
-                "END:VEVENT"
-            ])
-        elif lesson["is_additional"]:
-            ics_content.extend([
-                "BEGIN:VEVENT",
-                f"DTSTART:{event_start}",
-                f"DTEND:{event_end}",
-                f"SUMMARY:Ersatzstunde {lesson['subject']}",
-                f"DESCRIPTION:{event_description} Prüfung!",
-                f"LOCATION:{lesson['teacher']}",
-                "STATUS:CONFIRMED",
-                "END:VEVENT"
-            ])
-        else:
-            ics_content.extend([
-                "BEGIN:VEVENT",
-                f"DTSTART:{event_start}",
-                f"DTEND:{event_end}",
-                f"SUMMARY:{lesson['subject']}",
-                f"DESCRIPTION:{event_description}",
-                f"LOCATION:{lesson['teacher']}",
-                "STATUS:CONFIRMED",
-                "END:VEVENT"
-            ])
+    print(f"Anzahl gefundener Stunden: {len(sorted_lessons)}")
 
-    # Ende des Kalenders
+    if sorted_lessons:
+        earliest_date = min(lesson["lesson_date"] for lesson in sorted_lessons)
+        latest_date = max(lesson["lesson_date"] for lesson in sorted_lessons)
+    else:
+        earliest_date = datetime.date.today()
+        latest_date = earliest_date
+
+    # ICS date strings
+    start_date_ics = earliest_date.strftime("%Y%m%d")
+    end_date_ics = (latest_date + datetime.timedelta(days=1)).strftime("%Y%m%d")
+
+    next_workday_dt = get_next_workday(latest_date)
+    next_workday_str = next_workday_dt.strftime("%d.%m.%Y")
+
+    # Creation date/time for ICS
+    if sorted_lessons:
+        first_lesson_dt = datetime.datetime.combine(sorted_lessons[0]["lesson_date"], sorted_lessons[0]["start_time"])
+        creation_date = first_lesson_dt.strftime("%Y%m%dT%H%M%S")
+    else:
+        creation_date = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
+
+    # Add lesson events
+    for lesson in sorted_lessons:
+        event_start = datetime.datetime.combine(lesson["lesson_date"], lesson["start_time"]).strftime("%Y%m%dT%H%M%S")
+        event_end = datetime.datetime.combine(lesson["lesson_date"], lesson["end_time"]).strftime("%Y%m%dT%H%M%S")
+        event_description = f"{lesson['subject']} - {lesson['teacher']}"
+
+        if lesson["is_exam"]:
+            summary_line = f"Prüfung {lesson['subject']}"
+            description_line = f"{event_description} Prüfung!"
+        elif lesson["is_additional"]:
+            summary_line = f"Ersatzstunde {lesson['subject']}"
+            description_line = f"{event_description} Prüfung!"
+        else:
+            summary_line = lesson["subject"]
+            description_line = event_description
+
+        ics_content.extend([
+            "BEGIN:VEVENT",
+            f"DTSTART:{event_start}",
+            f"DTEND:{event_end}",
+            f"SUMMARY:{summary_line}",
+            f"DESCRIPTION:{description_line}",
+            f"LOCATION:{lesson['teacher']}",
+            "STATUS:CONFIRMED",
+            "END:VEVENT"
+        ])
+
+    # OOF Event
+    if create_oof:
+        display_name = school_data.get("displayName", "Schule") if school_data else "Schule"
+        address = school_data.get("address", "Unbekannte Adresse") if school_data else "Unbekannte Adresse"
+        # Build multiline description with embedded newlines.
+        # Each line is separated by \n. 
+        oof_description = (
+            "Sehr geehrte Damen und Herren,\\n\\n"
+            "leider bin ich derzeit außer Haus. Sie können mich ab dem "
+            f"{next_workday_str} wieder erreichen.\\n\\n"
+            "Viele Grüße,\\n\\n"
+            f"{name}\\n"
+            f"{betrieb}\\n\\n"
+            f"{email}\\n\\n"
+        )
+        oof_location = f"{display_name} ({address})"
+        
+        ics_content.extend([
+            "BEGIN:VEVENT",
+            "CLASS:PUBLIC",
+            f"CREATED:{creation_date}",
+            f"DESCRIPTION:{oof_description}",
+            f"DTEND;VALUE=DATE:{end_date_ics}",
+            f"DTSTART;VALUE=DATE:{start_date_ics}",
+            f"LOCATION:{oof_location}",
+            "PRIORITY:5",
+            "SEQUENCE:0",
+            "SUMMARY;LANGUAGE=de:Berufsschule",
+            "TRANSP:OPAQUE",
+            "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
+            "X-MICROSOFT-CDO-IMPORTANCE:1",
+            "X-MICROSOFT-DISALLOW-COUNTER:FALSE",
+            "X-MS-OLK-AUTOFILLLOCATION:FALSE",
+            "X-MS-OLK-CONFTYPE:0",
+            "END:VEVENT"
+        ])
+
     ics_content.append("END:VCALENDAR")
 
-    # Schreibe den ICS-Inhalt in die Datei
+    # Write file
     with open(file_path, 'w', encoding='utf8') as ics_file:
         ics_file.write("\n".join(ics_content))
 
     print(f"ICS-Datei für die Woche erstellt: {file_path}")
-    
+
+    # If you use a global variable to store the file path
     global global_file_path
     global_file_path = file_path
+
     
 
 def open_ics_with_default_app(ics_file_path):
