@@ -182,7 +182,7 @@ def fetch_timetable():
         print("Der Debugging Modus ist aktiviert.")
         debug_mode = True
     else:
-        print("Der Debugging Modus ist deaktiviert.")
+        #print("Der Debugging Modus ist deaktiviert.")
         debug_mode = False
     
     # is default usage
@@ -199,30 +199,106 @@ def fetch_timetable():
         choice = input("Bitte geben Sie den Namen ihres Arbeitsbetriebs ein: ")
         betrieb = choice
         update_config_env('BETRIEB', choice)
-    choiche = str(input("Sollen die Standardeinstellungen verwendet werden? (Y/N): "))
-    if choiche.lower() == "y":
-        is_default_usage = True
-    elif choiche.lower() == "n":
-        is_default_usage = False
+    print()
+    while True:
+        choice = input("Sollen die Standardeinstellungen verwendet werden? (Y/N): ").strip().lower()
+        if choice == "y":
+            is_default_usage = True
+            break
+        elif choice == "n":
+            is_default_usage = False
+            break
+        else:
+            print("Ungültige Eingabe! Bitte nur 'Y' oder 'N' angeben.")
         
     #get_cookies()
-    if standard_stadt == "None" or standard_stadt == "" or is_default_usage == False: 
-        city = str(input("Bitte geben Sie die Stadt der Schule ein z.B Ingolstadt: "))
-        if standard_stadt == "None" or standard_stadt == "":
-            choiche = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ")
-        if choiche.lower() == 'y':
-            update_config_env('STANDARD_STADT', city)
-            print("Standard Stadt gespeichert.")
-    elif is_default_usage:
+    # if standard_stadt == "None" or standard_stadt == "" or is_default_usage == False: 
+    #     city = str(input("Bitte geben Sie die Stadt der Schule ein z.B Ingolstadt: "))
+    #     choiche = ""
+    #     if standard_stadt == "None" or standard_stadt == "":
+
+
+    #         while True:
+    #             choiche = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ")
+    #             if choiche == "y":
+    #                 is_default_usage = True
+    #                 break
+    #             elif choiche == "n":
+    #                 is_default_usage = False
+    #                 break
+    #             else:
+    #                 print("Ungültige Eingabe! Bitte nur 'Y' oder 'N' angeben.")
+
+    #     if choiche.lower() == 'y':
+    #         update_config_env('STANDARD_STADT', city)
+    #         print("Standard Stadt gespeichert.")
+    # elif is_default_usage:
+    #     city = standard_stadt
+
+    if standard_stadt == "None" or standard_stadt.strip() == "" or not is_default_usage:
+        # Stadt einlesen
+        while True:
+            city = input("Bitte geben Sie die Stadt der Schule ein (z.B. Ingolstadt): ").strip()
+            if city:
+                # Stadt ist nicht leer
+                break
+            else:
+                print("Bitte geben Sie einen gültigen Stadtnamen ein.")
+
+        # Wenn im Code bisher keine Standardstadt konfiguriert ist, kann der Nutzer wählen,
+        # ob diese neue Stadt als Standard gespeichert werden soll.
+        if standard_stadt == "None" or standard_stadt.strip() == "":
+            while True:
+                choice = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ").strip().lower()
+                if choice == "y":
+                    # Nutzer möchte diese Stadt als Standard speichern
+                    update_config_env("STANDARD_STADT", city)
+                    print("Standard-Stadt gespeichert.")
+                    is_default_usage = True
+                    break
+                elif choice == "n":
+                    # Nutzer möchte diese Stadt nicht als Standard speichern
+                    is_default_usage = False
+                    break
+                else:
+                    print("Ungültige Eingabe! Bitte nur 'Y' oder 'N' angeben.")
+
+    else:
+        # Standardwerte werden verwendet, also nehmen wir standard_stadt
         city = standard_stadt
+
     school = get_schools(city=city)
-    login_name = school["loginSchool"]
+    if school:
+        login_name = school["loginSchool"]
+    else:
+        print("Es konnte keine Schule gefunden werden.")
+        input("Press enter to continue...")
+        return
     headers = get_headers(tenant_id=school["tenantId"], schoolname=school["loginName"], server=school["server"], login_name=login_name)
     class_id = get_classes_from_text(school)
     if (class_id is not None):
+
+        while True:
+            try:
+                week_count = int(input("Von wie vielen Wochen sollen die Stundenpläne heruntergeladen werden (1-15)?: ").strip())
+                if 1 <= week_count <= 15:
+                    # Gültiger Wert, Schleife verlassen
+                    break
+                else:
+                    print("Ungültige Anzahl von Wochen. Bitte gib eine Zahl zwischen 1 und 15 ein.")
+            except ValueError:
+                # Falls der Input nicht in eine ganze Zahl umgewandelt werden kann
+                print("Fehlerhafte Eingabe. Bitte gib eine ganze Zahl zwischen 1 und 15 ein.")
+
+
         
-        # Daten für die nächsten x Wochen abrufen und eine einzelne ICS-Datei für die gesamte Woche erstellen
-        week_count = int(input("Von wie vielen Wochen sollen die Stundenpläne heruntergeladen werden: ").strip())
+        global_file_path = f"./{school['loginName']}_Stundenplan_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.ics"
+        print(f"Stundenplan für {login_name} wird heruntergeladen und im ICS-Format gespeichert. Datei: {global_file_path}")
+        
+        # Abrufen der Stundenpläne für die nächsten x Wochen
+        # TODO: Implementieren Sie die Methode fetch_data_for_next_weeks() hier
+         
+
         school_days_subjects_teachers = fetch_data_for_next_weeks(school=school, class_id=class_id, week_count=week_count)
         create_ics_file_for_week(school_days_subjects_teachers, schoolname=login_name, school_data=school)
         open_in_outlook = input("Soll die Datei in Outlook geöffnet werden? (Y/N): ")
@@ -300,116 +376,117 @@ def create_ics_file_for_week(school_days_subjects_teachers, schoolname, output_d
     sorted_lessons = sorted(school_days_subjects_teachers, key=lambda x: (x["lesson_date"], x["start_time"]))
     filename = f"{schoolname}_stundenplan_woche.ics"
     file_path = os.path.join(output_dir, filename)
-
-    choice = input("Soll eine Out Of Office Notiz erstellt werden? (Y/N): ")
-    create_oof = (choice.lower() == "y")
-
-    ics_content = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "CALSCALE:GREGORIAN"
-    ]
-
     print(f"Anzahl gefundener Stunden: {len(sorted_lessons)}")
+    if len(sorted_lessons) > 0:
+        choice = input("Soll eine Out Of Office Notiz erstellt werden? (Y/N): ")
+        create_oof = (choice.lower() == "y")
 
-    if sorted_lessons:
-        earliest_date = min(lesson["lesson_date"] for lesson in sorted_lessons)
-        latest_date = max(lesson["lesson_date"] for lesson in sorted_lessons)
-    else:
-        earliest_date = datetime.date.today()
-        latest_date = earliest_date
+        ics_content = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "CALSCALE:GREGORIAN"
+        ]
 
-    # ICS date strings
-    start_date_ics = earliest_date.strftime("%Y%m%d")
-    end_date_ics = (latest_date + datetime.timedelta(days=1)).strftime("%Y%m%d")
-
-    next_workday_dt = get_next_workday(latest_date)
-    next_workday_str = next_workday_dt.strftime("%d.%m.%Y")
-
-    # Creation date/time for ICS
-    if sorted_lessons:
-        first_lesson_dt = datetime.datetime.combine(sorted_lessons[0]["lesson_date"], sorted_lessons[0]["start_time"])
-        creation_date = first_lesson_dt.strftime("%Y%m%dT%H%M%S")
-    else:
-        creation_date = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-
-    # Add lesson events
-    for lesson in sorted_lessons:
-        event_start = datetime.datetime.combine(lesson["lesson_date"], lesson["start_time"]).strftime("%Y%m%dT%H%M%S")
-        event_end = datetime.datetime.combine(lesson["lesson_date"], lesson["end_time"]).strftime("%Y%m%dT%H%M%S")
-        event_description = f"{lesson['subject']} - {lesson['teacher']}"
-
-        if lesson["is_exam"]:
-            summary_line = f"Prüfung {lesson['subject']}"
-            description_line = f"{event_description} Prüfung!"
-        elif lesson["is_additional"]:
-            summary_line = f"Ersatzstunde {lesson['subject']}"
-            description_line = f"{event_description} Prüfung!"
-        else:
-            summary_line = lesson["subject"]
-            description_line = event_description
-
-        ics_content.extend([
-            "BEGIN:VEVENT",
-            f"DTSTART:{event_start}",
-            f"DTEND:{event_end}",
-            f"SUMMARY:{summary_line}",
-            f"DESCRIPTION:{description_line}",
-            f"LOCATION:{lesson['teacher']}",
-            "STATUS:CONFIRMED",
-            "END:VEVENT"
-        ])
-
-    # OOF Event
-    if create_oof:
-        display_name = school_data.get("displayName", "Schule") if school_data else "Schule"
-        address = school_data.get("address", "Unbekannte Adresse") if school_data else "Unbekannte Adresse"
-        # Build multiline description with embedded newlines.
-        # Each line is separated by \n. 
-        oof_description = (
-            "Sehr geehrte Damen und Herren,\\n\\n"
-            "leider bin ich derzeit außer Haus. Sie können mich ab dem "
-            f"{next_workday_str} wieder erreichen.\\n\\n"
-            "Viele Grüße,\\n\\n"
-            f"{name}\\n"
-            f"{betrieb}\\n\\n"
-            f"{email}\\n\\n"
-        )
-        oof_location = f"{display_name} ({address})"
         
-        ics_content.extend([
-            "BEGIN:VEVENT",
-            "CLASS:PUBLIC",
-            f"CREATED:{creation_date}",
-            f"DESCRIPTION:{oof_description}",
-            f"DTEND;VALUE=DATE:{end_date_ics}",
-            f"DTSTART;VALUE=DATE:{start_date_ics}",
-            f"LOCATION:{oof_location}",
-            "PRIORITY:5",
-            "SEQUENCE:0",
-            "SUMMARY;LANGUAGE=de:Berufsschule",
-            "TRANSP:OPAQUE",
-            "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
-            "X-MICROSOFT-CDO-IMPORTANCE:1",
-            "X-MICROSOFT-DISALLOW-COUNTER:FALSE",
-            "X-MS-OLK-AUTOFILLLOCATION:FALSE",
-            "X-MS-OLK-CONFTYPE:0",
-            "END:VEVENT"
-        ])
 
-    ics_content.append("END:VCALENDAR")
+        if sorted_lessons:
+            earliest_date = min(lesson["lesson_date"] for lesson in sorted_lessons)
+            latest_date = max(lesson["lesson_date"] for lesson in sorted_lessons)
+        else:
+            earliest_date = datetime.date.today()
+            latest_date = earliest_date
 
-    # Write file
-    with open(file_path, 'w', encoding='utf8') as ics_file:
-        ics_file.write("\n".join(ics_content))
+        # ICS date strings
+        start_date_ics = earliest_date.strftime("%Y%m%d")
+        end_date_ics = (latest_date + datetime.timedelta(days=1)).strftime("%Y%m%d")
 
-    print(f"ICS-Datei für die Woche erstellt: {file_path}")
+        next_workday_dt = get_next_workday(latest_date)
+        next_workday_str = next_workday_dt.strftime("%d.%m.%Y")
 
-    # If you use a global variable to store the file path
-    global global_file_path
-    global_file_path = file_path
+        # Creation date/time for ICS
+        if sorted_lessons:
+            first_lesson_dt = datetime.datetime.combine(sorted_lessons[0]["lesson_date"], sorted_lessons[0]["start_time"])
+            creation_date = first_lesson_dt.strftime("%Y%m%dT%H%M%S")
+        else:
+            creation_date = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
 
-    
+        # Add lesson events
+        for lesson in sorted_lessons:
+            event_start = datetime.datetime.combine(lesson["lesson_date"], lesson["start_time"]).strftime("%Y%m%dT%H%M%S")
+            event_end = datetime.datetime.combine(lesson["lesson_date"], lesson["end_time"]).strftime("%Y%m%dT%H%M%S")
+            event_description = f"{lesson['subject']} - {lesson['teacher']}"
+
+            if lesson["is_exam"]:
+                summary_line = f"Prüfung {lesson['subject']}"
+                description_line = f"{event_description} Prüfung!"
+            elif lesson["is_additional"]:
+                summary_line = f"Ersatzstunde {lesson['subject']}"
+                description_line = f"{event_description} Prüfung!"
+            else:
+                summary_line = lesson["subject"]
+                description_line = event_description
+
+            ics_content.extend([
+                "BEGIN:VEVENT",
+                f"DTSTART:{event_start}",
+                f"DTEND:{event_end}",
+                f"SUMMARY:{summary_line}",
+                f"DESCRIPTION:{description_line}",
+                f"LOCATION:{lesson['teacher']}",
+                "STATUS:CONFIRMED",
+                "END:VEVENT"
+            ])
+
+        # OOF Event
+        if create_oof:
+            display_name = school_data.get("displayName", "Schule") if school_data else "Schule"
+            address = school_data.get("address", "Unbekannte Adresse") if school_data else "Unbekannte Adresse"
+            # Build multiline description with embedded newlines.
+            # Each line is separated by \n. 
+            oof_description = (
+                "Sehr geehrte Damen und Herren,\\n\\n"
+                "leider bin ich derzeit außer Haus. Sie können mich ab dem "
+                f"{next_workday_str} wieder erreichen.\\n\\n"
+                "Viele Grüße,\\n\\n"
+                f"{name}\\n"
+                f"{betrieb}\\n\\n"
+                f"{email}\\n\\n"
+            )
+            oof_location = f"{display_name} ({address})"
+            
+            ics_content.extend([
+                "BEGIN:VEVENT",
+                "CLASS:PUBLIC",
+                f"CREATED:{creation_date}",
+                f"DESCRIPTION:{oof_description}",
+                f"DTEND;VALUE=DATE:{end_date_ics}",
+                f"DTSTART;VALUE=DATE:{start_date_ics}",
+                f"LOCATION:{oof_location}",
+                "PRIORITY:5",
+                "SEQUENCE:0",
+                "SUMMARY;LANGUAGE=de:Berufsschule",
+                "TRANSP:OPAQUE",
+                "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
+                "X-MICROSOFT-CDO-IMPORTANCE:1",
+                "X-MICROSOFT-DISALLOW-COUNTER:FALSE",
+                "X-MS-OLK-AUTOFILLLOCATION:FALSE",
+                "X-MS-OLK-CONFTYPE:0",
+                "END:VEVENT"
+            ])
+
+        ics_content.append("END:VCALENDAR")
+
+        # Write file
+        with open(file_path, 'w', encoding='utf8') as ics_file:
+            ics_file.write("\n".join(ics_content))
+
+        print(f"ICS-Datei für die Woche erstellt: {file_path}")
+
+        # If you use a global variable to store the file path
+        global global_file_path
+        global_file_path = file_path
+    else:
+        print("Keine Stunden gefunden.")
 
 def open_ics_with_default_app(ics_file_path):
     # Check if the .ics file exists
@@ -783,6 +860,8 @@ def get_school_days_subjects_teachers(json_data):
                 teacher = 'Unbekannt'  # Falls keine Lehrerinformation vorhanden ist
             
             cellState = period.get("cellState", '')
+            is_exam = False
+            is_additional = False
             if debug_mode:
                 print(f"{subject} : {cellState}")
             if cellState == "EXAM":
@@ -792,6 +871,7 @@ def get_school_days_subjects_teachers(json_data):
             else:
                 is_additional = False
                 is_exam = False
+                #print("Set is_additional to: ", is_additional)
 
             # Bestimme die Stunde und Minute, um die korrekte Startzeit zu berechnen
             start_time = period.get('startTime', 0)  
@@ -802,7 +882,8 @@ def get_school_days_subjects_teachers(json_data):
             start_minute = start_time % 100
             end_hour = end_time // 100
             end_minute = end_time % 100
-
+            #if is_additional is None or is_additional == "":
+                #print(is_additional)
             # Füge den Schultag, das Datum, das Fach, den Lehrer und die Uhrzeiten zur Liste hinzu
             school_days_subjects_teachers.append({
                 "lesson_date": lesson_date,
