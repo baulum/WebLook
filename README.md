@@ -1,6 +1,6 @@
 ### WebLook – German  User Guide
 
-**Version**: 1.3  
+**Version**: 1.1  
 **Stand**: 2025-01-20
 
 ---
