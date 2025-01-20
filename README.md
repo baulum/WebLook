@@ -18,6 +18,9 @@
 ## Configuration
 ### Configuration File (`config.env`)
 Stores settings like:
+- **NAME**: Your name.
+- **EMAIL**: Your Email.
+- **BETRIEB**: Your employer.
 - **STANDARD_STADT**: Default city.
 - **STANDARD_KLASSE**: Default class.
 - **STANDARD_SCHULNUMMER**: School number.
