@@ -31,6 +31,9 @@ If any of the values is not "None" than the user will be prompted to put it in t
 
 ### Default Configuration
 ```ini
+NAME=None
+EMAIL=None
+BETRIEB=None
 STANDARD_STADT=None
 STANDARD_KLASSE=None
 STANDARD_SCHULNUMMER=None
