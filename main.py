@@ -38,10 +38,10 @@ def display_settings_menu():
     print("2. Update Name")
     print("3. Update Email")
     print("4. Update Betrieb")
-    print("5. Update STANDARD_STADT")
-    print("6. Update STANDARD_KLASSE")
-    print("7. Update STANDARD_SCHULNUMMER")
-    print("8. Update DEBUGGING")
+    print("5. Update Stadt")
+    print("6. Update Klasse")
+    print("7. Update Schulnummer")
+    print("8. Update Debugging")
     print("9. Back to Main Menu - Press 9 or Enter")
 
 def read_config_env(file_path='config.env'):
@@ -50,10 +50,10 @@ def read_config_env(file_path='config.env'):
         "NAME": "None",
         "EMAIL": "None",
         "BETRIEB": "None",
-        "STANDARD_STADT" : "None",
-        "STANDARD_KLASSE": "None",
-        "STANDARD_SCHULNUMMER": "None",
-        "DEBUGGING": "False"
+        "Stadt" : "None",
+        "Klasse": "None",
+        "Schulnummer": "None",
+        "Debugging": "False"
     }
 
     try:
@@ -111,25 +111,25 @@ def settings_menu():
         
         elif choice == '5':
             new_value = input("Enter new value for STADT: ")
-            update_config_env('STANDARD_STADT', new_value)
+            update_config_env('Stadt', new_value)
             print("STADT updated successfully!")
             input("\nPress Enter to return to the menu...")
         
         elif choice == '6':
             new_value = input("Enter new value for KLASSE: ")
-            update_config_env('STANDARD_KLASSE', new_value)
+            update_config_env('Klasse', new_value)
             print("KLASSE updated successfully!")
             input("\nPress Enter to return to the menu...")
         
         elif choice == '7':
             new_value = input("Enter new value for SCHULNUMMER: ")
-            update_config_env('STANDARD_SCHULNUMMER', new_value)
+            update_config_env('Schulnummer', new_value)
             print("SCHULNUMMER updated successfully!")
             input("\nPress Enter to return to the menu...")
         
         elif choice == '8':
             config = read_config_env()
-            debugging = config.get('DEBUGGING', 'False')
+            debugging = config.get('Debugging', 'False')
             
 
             if debugging.lower() == 'true':
@@ -138,10 +138,10 @@ def settings_menu():
                 new_value = True
             elif debugging.lower() == '':
                 new_value = False
-            #new_value = input("Enter new value for DEBUGGING (True/False): ")
-            update_config_env('DEBUGGING', new_value)
-            print("DEBUGGING updated successfully!")
-            print(f"DEBUGGING = {new_value}")
+            #new_value = input("Enter new value for Debugging (True/False): ")
+            update_config_env('Debugging', new_value)
+            print("Debugging updated successfully!")
+            print(f"Debugging = {new_value}")
             input("\nPress Enter to return to the menu...")
         
         elif choice == '9' or choice == '':
@@ -154,7 +154,7 @@ def settings_menu():
 def fetch_timetable():
     
     config = read_config_env()
-    debugging = config.get("DEBUGGING", False)
+    debugging = config.get("Debugging", False)
     global name
     global email
     global betrieb
@@ -172,9 +172,9 @@ def fetch_timetable():
     name = config.get("NAME", "None")
     email = config.get("EMAIL", "None")
     betrieb = config.get("BETRIEB", "None")
-    standard_stadt = config.get("STANDARD_STADT", "None")
-    standard_klasse = config.get("STANDARD_KLASSE", "None")
-    standard_schulnummer = config.get("STANDARD_SCHULNUMMER", "None")
+    standard_stadt = config.get("Stadt", "None")
+    standard_klasse = config.get("Klasse", "None")
+    standard_schulnummer = config.get("Schulnummer", "None")
     jsessionid = ""
     traceid = ""
     # Example logic based on configuration
@@ -230,7 +230,7 @@ def fetch_timetable():
     #                 print("Ungültige Eingabe! Bitte nur 'Y' oder 'N' angeben.")
 
     #     if choiche.lower() == 'y':
-    #         update_config_env('STANDARD_STADT', city)
+    #         update_config_env('Stadt', city)
     #         print("Standard Stadt gespeichert.")
     # elif is_default_usage:
     #     city = standard_stadt
@@ -252,7 +252,7 @@ def fetch_timetable():
                 choice = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ").strip().lower()
                 if choice == "y":
                     # Nutzer möchte diese Stadt als Standard speichern
-                    update_config_env("STANDARD_STADT", city)
+                    update_config_env("Stadt", city)
                     print("Standard-Stadt gespeichert.")
                     is_default_usage = True
                     break
@@ -697,7 +697,7 @@ def get_classes_from_text(school):
             if standard_klasse == "None" or standard_klasse == "":
                 choiche = input("Soll der Klassennamen als Standard gespeichert werden? (Y/N):")
             if choiche.lower() == "y":
-                update_config_env("STANDARD_KLASSE", class_short_name)
+                update_config_env("Klasse", class_short_name)
                 print("Standard Klassenname gespeichert.")
         else:
             class_short_name = standard_klasse.strip()
@@ -774,7 +774,7 @@ def get_schools(city):
         if standard_schulnummer == "None" or standard_schulnummer == "":
             choice = input("Soll diese Schulnummer als Standard gespeichert werden? (Y/N): ")
         if choice.lower() == "y":
-            update_config_env('STANDARD_SCHULNUMMER', school_number)
+            update_config_env('Schulnummer', school_number)
             print("Standard Schulnummer gespeichert.")
         #eingaben überprüfen
         if 0 <= school_number < counter:
