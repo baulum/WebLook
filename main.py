@@ -837,7 +837,7 @@ class MainMenuPage(QWidget):
         layout.addWidget(desc)
 
         # Add a placeholder label or something
-        info = QLabel("Nutzen Sie die Seitenleiste, um zu navigieren:\n\n1) Stundenplan abrufen\n2) Einstellungen\n3) Schließen Sie das Fenster, um das Programm zu beenden")
+        info = QLabel("Nutzen Sie die Seitenleiste, um zu navigieren:\n\n1) Stundenplan abrufen\n2) Einstellungen\n3")
         layout.addWidget(info)
         layout.addStretch()
 
