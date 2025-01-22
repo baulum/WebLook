@@ -1216,11 +1216,7 @@ class FetchTimetablePage(QWidget):
                         os.makedirs(build_assets_path)
                         os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s')
                     print("Build successful.")
-                    ret = QMessageBox.question(self, "Run the build?", "Built successfully! Should the build be run?", QMessageBox.Yes | QMessageBox.No)
-                    if ret == QMessageBox.Yes:
-                        os.system(f'cd dist && WebLook.exe')
-                        #Exit the non builded version
-                        sys.exit(0)
+                        
         
 
 
