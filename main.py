@@ -1,58 +1,41 @@
-
-import requests
-import re
-import datetime
-import urllib.parse
-import json
+import sys
 import os
+import re
+import json
 import base64
-from termcolor import colored
-#from dotenv import load_dotenv, find_dotenv
+import datetime
 import subprocess
+import urllib.parse
+import requests
 
-def display_main_menu():
-    os.system('cls' if os.name == 'nt' else 'clear')
-    print(colored(r"""
-        
-    █     █░▓█████  ▄▄▄▄    ██▓     ▒█████   ▒█████   ██ ▄█▀
-    ▓█░ █ ░█░▓█   ▀ ▓█████▄ ▓██▒    ▒██▒  ██▒▒██▒  ██▒ ██▄█▒ 
-    ▒█░ █ ░█ ▒███   ▒██▒ ▄██▒██░    ▒██░  ██▒▒██░  ██▒▓███▄░ 
-    ░█░ █ ░█ ▒▓█  ▄ ▒██░█▀  ▒██░    ▒██   ██░▒██   ██░▓██ █▄ 
-    ░░██▒██▓ ░▒████▒░▓█  ▀█▓░██████▒░ ████▓▒░░ ████▓▒░▒██▒ █▄
-    ░ ▓░▒ ▒  ░░ ▒░ ░░▒▓███▀▒░ ▒░▓  ░░ ▒░▒░▒░ ░ ▒░▒░▒░ ▒ ▒▒ ▓▒
-    ▒ ░ ░   ░ ░  ░▒░▒   ░ ░ ░ ▒  ░  ░ ▒ ▒░   ░ ▒ ▒░ ░ ░▒ ▒░
-    ░   ░     ░    ░    ░   ░ ░   ░ ░ ░ ▒  ░ ░ ░ ▒  ░ ░░ ░ 
-        ░       ░  ░ ░          ░  ░    ░ ░      ░ ░  ░  ░   
-                        ░                                  
-                                                                
-    """, "red"))
-    print("Welcome to the WebLook --- Number one WebUntis to Outlook Tool!")
-    print("1. Fetch Timetable")
-    print("2. Settings")
-    print("3. Exit")
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QIcon, QFont, QTextCursor
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QPushButton, QLabel, QStackedWidget, QLineEdit, QTextEdit, QSpinBox,
+    QMessageBox, QScrollArea, QFrame, QStyle, QGridLayout, QSizePolicy, QComboBox, QCheckBox, QFileDialog
+)
 
-def display_settings_menu():
-    os.system('cls' if os.name == 'nt' else 'clear')
-    print("Settings Menu:")
-    print("1. View current settings")
-    print("2. Update Name")
-    print("3. Update Email")
-    print("4. Update Betrieb")
-    print("5. Update Stadt")
-    print("6. Update Klasse")
-    print("7. Update Schulnummer")
-    print("8. Update Debugging")
-    print("9. Back to Main Menu - Press 9 or Enter")
+
+# -----------------------------
+# Original Helper Functions
+# (Modified to remove console input, replaced with PyQt usage)
+# -----------------------------
 
 def read_config_env(file_path='config.env'):
     config = {}
+    script_directory = os.path.dirname(os.path.abspath(sys.argv[0])) 
+    default_path = os.path.join(script_directory, "kalender")
+
     default_settings = {
-        "NAME": "None",
-        "EMAIL": "None",
-        "BETRIEB": "None",
-        "Stadt" : "None",
+        "Name": "None",
+        "Email": "None",
+        "Betrieb": "None",
+        "Stadt/Adresse": "None",
         "Klasse": "None",
         "Schulnummer": "None",
+        "Wochen": "4",
+        "Dateipfad": default_path,	
         "Debugging": "False"
     }
 
@@ -69,299 +52,176 @@ def read_config_env(file_path='config.env'):
                 file.write(f"{key}={value}\n")
         config = default_settings.copy()
     except Exception as e:
-        print(f"An error occurred: {e}")
-    
+        print(f"An error occurred reading config.env: {e}")
     return config
 
 def update_config_env(key, value, file_path='config.env'):
     config = read_config_env(file_path)
-    config[key] = value
+    config[key] = str(value)
     with open(file_path, 'w') as file:
         for k, v in config.items():
             file.write(f"{k}={v}\n")
 
-def settings_menu():
-    while True:
-        display_settings_menu()
-        choice = input("Please select an option: ")
-        
-        if choice == '1':
-            config = read_config_env()
-            print("\nCurrent Settings:")
-            for key, value in config.items():
-                print(f"{key} = {value}")
-            input("\nPress Enter to return to the menu...")
+def generate_sleek_session():
+    current_time = datetime.datetime.utcnow().isoformat() + "Z"
+    sleek_session_dict = {"init": current_time}
+    sleek_session_str = str(sleek_session_dict)
+    sleek_session_encoded = urllib.parse.quote(sleek_session_str)
+    return f"_sleek_session={sleek_session_encoded}"
 
-        elif choice == '2':
-            new_value = input("Enter new name: ")
-            update_config_env('NAME', new_value)
-            print("Name updated successfully!")
-            input("\nPress Enter to return to the menu...")
+def get_cookies(server, loginName, debug_mode=False):
+    url = f"https://{server}/WebUntis/?school={loginName}"
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "referer": "https://webuntis.com/",
+        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    }
+    try:
+        session = requests.Session()
+        response = session.get(url, headers=headers)
+        cookies = response.cookies.get_dict()
+        jsessionid = cookies.get('JSESSIONID')
+        traceid = cookies.get('traceId')
+        if debug_mode:
+            print("Cookies:", cookies)
+        return jsessionid, traceid
+    except Exception as e:
+        print(f"Error getting cookies: {e}")
+        return None, None
 
-        elif choice == '3':
-            new_value = input("Enter new Email: ")
-            update_config_env('EMAIL', new_value)
-            print("Email updated successfully!")
-            input("\nPress Enter to return to the menu...")
-        elif choice == '4':
-            new_value = input("Enter new Betrieb: ")
-            update_config_env('BETRIEB', new_value)
-            print("Email updated successfully!")
-            input("\nPress Enter to return to the menu...")
-        
-        elif choice == '5':
-            new_value = input("Enter new value for STADT: ")
-            update_config_env('Stadt', new_value)
-            print("STADT updated successfully!")
-            input("\nPress Enter to return to the menu...")
-        
-        elif choice == '6':
-            new_value = input("Enter new value for KLASSE: ")
-            update_config_env('Klasse', new_value)
-            print("KLASSE updated successfully!")
-            input("\nPress Enter to return to the menu...")
-        
-        elif choice == '7':
-            new_value = input("Enter new value for SCHULNUMMER: ")
-            update_config_env('Schulnummer', new_value)
-            print("SCHULNUMMER updated successfully!")
-            input("\nPress Enter to return to the menu...")
-        
-        elif choice == '8':
-            config = read_config_env()
-            debugging = config.get('Debugging', 'False')
-            
+def get_headers(tenant_id, schoolname, server, login_name, jsession_id, trace_id):
+    sleek_session = generate_sleek_session()
+    headers = {
+        'accept': 'application/json',
+        'accept-encoding': 'gzip, deflate, br, zstd',
+        'accept-language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+        'priority': 'u=1, i',
+        'referer': f'https://{server}/WebUntis',
+        'cookie': (
+            f'schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; traceId={trace_id}; '
+            f'JSESSIONID={jsession_id}; _sleek_session={sleek_session}'
+        ),
+        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'tenant-id': f'{tenant_id}',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' \
+                      '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+    }
+    return headers
 
-            if debugging.lower() == 'true':
-                new_value = False
-            elif debugging.lower() == 'false':
-                new_value = True
-            elif debugging.lower() == '':
-                new_value = False
-            #new_value = input("Enter new value for Debugging (True/False): ")
-            update_config_env('Debugging', new_value)
-            print("Debugging updated successfully!")
-            print(f"Debugging = {new_value}")
-            input("\nPress Enter to return to the menu...")
-        
-        elif choice == '9' or choice == '':
-            break
-        
-        else:
-            print("Invalid choice, please try again.")
-            input("\nPress Enter to return to the menu...")
-            
-def fetch_timetable():
-    
-    config = read_config_env()
-    debugging = config.get("Debugging", False)
-    global name
-    global email
-    global betrieb
-    global standard_klasse
-    global standard_schulnummer
-    global standard_stadt
-    global debug_mode
-    global jsessionid
-    global traceid
-    global headers
-    global school
-    global is_default_usage
-    
+def get_class_id_headers(tenant_id, schoolname, server, login_name, jsession_id, trace_id):
+    sleek_session = generate_sleek_session()
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+        "anonymous-school": f"{login_name}",
+        "cookie": (
+            f'schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; traceId={trace_id}; '
+            f'JSESSIONID={jsession_id}; _sleek_session={sleek_session}'
+        ),
+        "priority": "u=1, i",
+        "referer": f"https://{server}/timetable-new/class",
+        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " \
+                      "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    }
+    return headers
 
-    name = config.get("NAME", "None")
-    email = config.get("EMAIL", "None")
-    betrieb = config.get("BETRIEB", "None")
-    standard_stadt = config.get("Stadt", "None")
-    standard_klasse = config.get("Klasse", "None")
-    standard_schulnummer = config.get("Schulnummer", "None")
-    jsessionid = ""
-    traceid = ""
-    # Example logic based on configuration
-    if debugging.lower() == 'true':
-        print("Der Debugging Modus ist aktiviert.")
-        debug_mode = True
-    else:
-        #print("Der Debugging Modus ist deaktiviert.")
-        debug_mode = False
-    
-    # is default usage
+def get_start_of_week(date_str):
+    if isinstance(date_str, datetime.datetime):
+        date_str = date_str.strftime("%Y-%m-%d")
+    date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
+    start_of_week = date - datetime.timedelta(days=date.weekday())
+    return start_of_week.strftime("%Y-%m-%d")
 
-    if name == "None" or name == "":
-        choice = input("Bitte gib deinen Namen ein: ")
-        name = choice
-        update_config_env('NAME', choice)
-    if email == "None" or email == "":
-        choice = input("Bitte gib deine Email ein: ")
-        email = choice
-        update_config_env('EMAIL', choice)
-    if betrieb == "None" or betrieb == "":
-        choice = input("Bitte geben Sie den Namen ihres Arbeitsbetriebs ein: ")
-        betrieb = choice
-        update_config_env('BETRIEB', choice)
-    print()
-    while True:
-        choice = input("Sollen die Standardeinstellungen verwendet werden? (Y/N): ").strip().lower()
-        if choice == "y":
-            is_default_usage = True
-            break
-        elif choice == "n":
-            is_default_usage = False
-            break
-        else:
-            print("Ungültige Eingabe! Bitte nur 'Y' oder 'N' angeben.")
-        
-    #get_cookies()
-    # if standard_stadt == "None" or standard_stadt == "" or is_default_usage == False: 
-    #     city = str(input("Bitte geben Sie die Stadt der Schule ein z.B Ingolstadt: "))
-    #     choiche = ""
-    #     if standard_stadt == "None" or standard_stadt == "":
+def fetch_timetable_data(url, headers):
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Fehler bei der Anfrage: {e}")
+        return None
+    except ValueError as e:
+        print(f"Fehler beim Parsen von JSON: {e}")
+        return None
 
+def get_school_days_subjects_teachers(json_data, debug_mode=False):
+    date_to_day = {
+        0: 'Montag',
+        1: 'Dienstag',
+        2: 'Mittwoch',
+        3: 'Donnerstag',
+        4: 'Freitag',
+        5: 'Samstag',
+        6: 'Sonntag',
+    }
+    element_periods = json_data['data']['result']['data'].get('elementPeriods')
+    if element_periods is None:
+        element_periods = json_data['data']['result']['data'].get('elements', {})
 
-    #         while True:
-    #             choiche = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ")
-    #             if choiche == "y":
-    #                 is_default_usage = True
-    #                 break
-    #             elif choiche == "n":
-    #                 is_default_usage = False
-    #                 break
-    #             else:
-    #                 print("Ungültige Eingabe! Bitte nur 'Y' oder 'N' angeben.")
+    school_days_subjects_teachers = []
 
-    #     if choiche.lower() == 'y':
-    #         update_config_env('Stadt', city)
-    #         print("Standard Stadt gespeichert.")
-    # elif is_default_usage:
-    #     city = standard_stadt
+    for _, periods in element_periods.items():
+        for period in periods:
+            date = period['date']
+            date_str = str(date)
+            year = int(date_str[:4])
+            month = int(date_str[4:6])
+            day = int(date_str[6:])
+            lesson_date = datetime.date(year, month, day)
+            day_of_week = lesson_date.weekday()
+            school_day = date_to_day[day_of_week]
 
-    if standard_stadt == "None" or standard_stadt.strip() == "" or not is_default_usage:
-        # Stadt einlesen
-        while True:
-            city = input("Bitte geben Sie die Stadt der Schule ein (z.B. Ingolstadt): ").strip()
-            if city:
-                # Stadt ist nicht leer
-                break
+            lesson_code = period.get('studentGroup', '')
+            if '_' in lesson_code:
+                parts = lesson_code.split('_', 1)
+                subject = parts[0]
+                teacher_part = parts[1] if len(parts) > 1 else 'Unbekannt'
+                teacher_parts = teacher_part.split("_")
+                teacher = teacher_parts[-1] if len(teacher_parts) > 1 else teacher_part
             else:
-                print("Bitte geben Sie einen gültigen Stadtnamen ein.")
+                subject = lesson_code
+                teacher = 'Unbekannt'
 
-        # Wenn im Code bisher keine Standardstadt konfiguriert ist, kann der Nutzer wählen,
-        # ob diese neue Stadt als Standard gespeichert werden soll.
-        if standard_stadt == "None" or standard_stadt.strip() == "":
-            while True:
-                choice = input("Soll die Stadt als Standard gespeichert werden? (Y/N): ").strip().lower()
-                if choice == "y":
-                    # Nutzer möchte diese Stadt als Standard speichern
-                    update_config_env("Stadt", city)
-                    print("Standard-Stadt gespeichert.")
-                    is_default_usage = True
-                    break
-                elif choice == "n":
-                    # Nutzer möchte diese Stadt nicht als Standard speichern
-                    is_default_usage = False
-                    break
-                else:
-                    print("Ungültige Eingabe! Bitte nur 'Y' oder 'N' angeben.")
+            cellState = period.get("cellState", '')
+            is_exam = (cellState == "EXAM")
+            is_additional = (cellState == "ADDITIONAL")
 
-    else:
-        # Standardwerte werden verwendet, also nehmen wir standard_stadt
-        city = standard_stadt
+            start_time = period.get('startTime', 0)
+            end_time = period.get('endTime', 0)
+            start_hour = start_time // 100
+            start_minute = start_time % 100
+            end_hour = end_time // 100
+            end_minute = end_time % 100
 
-    school = get_schools(city=city)
-    if school:
-        login_name = school["loginSchool"]
-    else:
-        print("Es konnte keine Schule gefunden werden.")
-        input("Press enter to continue...")
-        return
-    headers = get_headers(tenant_id=school["tenantId"], schoolname=school["loginName"], server=school["server"], login_name=login_name)
-    class_id = get_classes_from_text(school)
-    if (class_id is not None):
+            if debug_mode:
+                print(f"Processed: {subject}, cellState={cellState}")
 
-        while True:
-            try:
-                week_count = int(input("Von wie vielen Wochen sollen die Stundenpläne heruntergeladen werden (1-15)?: ").strip())
-                if 1 <= week_count <= 15:
-                    # Gültiger Wert, Schleife verlassen
-                    break
-                else:
-                    print("Ungültige Anzahl von Wochen. Bitte gib eine Zahl zwischen 1 und 15 ein.")
-            except ValueError:
-                # Falls der Input nicht in eine ganze Zahl umgewandelt werden kann
-                print("Fehlerhafte Eingabe. Bitte gib eine ganze Zahl zwischen 1 und 15 ein.")
-
-
-        
-        global_file_path = f"./{school['loginName']}_Stundenplan_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.ics"
-        print(f"Stundenplan für {login_name} wird heruntergeladen und im ICS-Format gespeichert. Datei: {global_file_path}")
-        
-        # Abrufen der Stundenpläne für die nächsten x Wochen
-        # TODO: Implementieren Sie die Methode fetch_data_for_next_weeks() hier
-         
-
-        school_days_subjects_teachers = fetch_data_for_next_weeks(school=school, class_id=class_id, week_count=week_count)
-        create_ics_file_for_week(school_days_subjects_teachers, schoolname=login_name, school_data=school)
-        open_in_outlook = input("Soll die Datei in Outlook geöffnet werden? (Y/N): ")
-        if open_in_outlook.lower() == 'y':
-            open_ics_with_default_app(global_file_path)
-        elif open_in_outlook.lower() == 'n':
-            print("Die Datei wurde nicht geöffnet.")
-        else:
-            print("Ungültige Eingabe, die Datei wurde nicht geöffnet.")
-        
-    else:
-        print("Kein Stundenplan gefunden.") 
-        
-    #print(school["loginName"])
-    x_crsf_token = get_x_crsf_token(server=school["server"], loginName=login_name, school=school)
-    
-    if debug_mode:
-        choice = input("Should this version be built? (Y/N): ")
-        if choice.lower() == 'y':
-            # start build.bat
-            os.system("build.bat")
-            # check if build was successful
-            if not os.path.exists(".\dist\WebLook.exe"):
-                print("Build failed.")
-            else:
-                print("Build successful.")
-        
-    input("\nPress Enter to continue...")
-    
-        
-    
-
-    
-
-# Funktion zum Abrufen von Daten für x Wochen
-def fetch_data_for_next_weeks(school, class_id, week_count):
-    # Hole das aktuelle Datum
-    current_date = datetime.datetime.now()
-    start_of_current_week = get_start_of_week(current_date)
-    # Generate the start dates for the specified number of weeks
-    weeks_to_fetch = [start_of_current_week]
-    for i in range(1, week_count):
-        start_of_next_week = get_start_of_week((current_date + datetime.timedelta(weeks=i)).strftime("%Y-%m-%d"))
-        weeks_to_fetch.append(start_of_next_week)
-
-    # weeks_to_fetch now contains the start dates for the requested number of weeks
-    if debug_mode:
-        print(weeks_to_fetch)
-
-
-    all_school_days = []
-    server = school["server"]
-    for week_start in weeks_to_fetch:
-        api_url = f"https://{server}/WebUntis/api/public/timetable/weekly/data?elementType=1&elementId={class_id}&date={week_start}&formatId=2&filter.departmentId=-1"
-        print(f"Hole Daten für die Woche, die am {week_start} beginnt...")
-
-        timetable_data = fetch_timetable_data(api_url, headers)
-        
-        if timetable_data:
-            school_days_subjects_teachers = get_school_days_subjects_teachers(timetable_data)
-            all_school_days.extend(school_days_subjects_teachers)
-    
-    return all_school_days
+            school_days_subjects_teachers.append({
+                "lesson_date": lesson_date,
+                "school_day": school_day,
+                "subject": subject,
+                "teacher": teacher,
+                "is_exam": is_exam,
+                "is_additional": is_additional,
+                "start_time": datetime.time(start_hour, start_minute),
+                "end_time": datetime.time(end_hour, end_minute),
+            })
+    return school_days_subjects_teachers
 
 def get_next_workday(date_obj):
     next_day = date_obj + datetime.timedelta(days=1)
@@ -369,91 +229,237 @@ def get_next_workday(date_obj):
         next_day += datetime.timedelta(days=1)
     return next_day
 
-def create_ics_file_for_week(school_days_subjects_teachers, schoolname, output_dir="kalender", school_data=None):
+# def create_ics_file_for_week(school_days_subjects_teachers, schoolname, output_dir="kalender", school_data=None,
+#     name="", betrieb="", email="", debug_log_func=print):
+#     if not os.path.exists(output_dir):
+#         os.makedirs(output_dir)
+#     #print(school_data)
+
+#     schoolname = school_data.get('loginSchool', "Schule").lower()
+#     sorted_lessons = sorted(school_days_subjects_teachers, key=lambda x: (x["lesson_date"], x["start_time"]))
+#     filename = f"{schoolname}_stundenplan_woche.ics"
+#     file_path = os.path.join(output_dir, filename)
+#     debug_log_func(f"Anzahl gefundener Stunden: {len(sorted_lessons)}")
+
+#     if len(sorted_lessons) > 0:
+#           # could be user-chosen in GUI if desired
+#         ics_content = [
+#             "BEGIN:VCALENDAR",
+#             "VERSION:2.0",
+#             "CALSCALE:GREGORIAN"
+#         ]
+
+#         earliest_date = min(lesson["lesson_date"] for lesson in sorted_lessons)
+#         latest_date = max(lesson["lesson_date"] for lesson in sorted_lessons)
+#         start_date_ics = earliest_date.strftime("%Y%m%d")
+#         end_date_ics = (latest_date + datetime.timedelta(days=1)).strftime("%Y%m%d")
+#         next_workday_dt = get_next_workday(latest_date)
+#         next_workday_str = next_workday_dt.strftime("%d.%m.%Y")
+#         first_lesson_dt = datetime.datetime.combine(sorted_lessons[0]["lesson_date"], sorted_lessons[0]["start_time"])
+#         creation_date = first_lesson_dt.strftime("%Y%m%dT%H%M%S")
+
+#         for lesson in sorted_lessons:
+#             event_start = datetime.datetime.combine(lesson["lesson_date"], lesson["start_time"]).strftime("%Y%m%dT%H%M%S")
+#             event_end = datetime.datetime.combine(lesson["lesson_date"], lesson["end_time"]).strftime("%Y%m%dT%H%M%S")
+#             event_description = f"{lesson['subject']} - {lesson['teacher']}"
+
+#             if lesson["is_exam"]:
+#                 summary_line = f"Prüfung {lesson['subject']}"
+#                 description_line = f"{event_description} Prüfung!"
+#             elif lesson["is_additional"]:
+#                 summary_line = f"Ersatzstunde {lesson['subject']}"
+#                 description_line = f"{event_description} Ersatz!"
+#             else:
+#                 summary_line = lesson["subject"]
+#                 description_line = event_description
+
+#             ics_content.extend([
+#                 "BEGIN:VEVENT",
+#                 f"DTSTART:{event_start}",
+#                 f"DTEND:{event_end}",
+#                 f"SUMMARY:{summary_line}",
+#                 f"DESCRIPTION:{description_line}",
+#                 f"LOCATION:{lesson['teacher']}",
+#                 "STATUS:CONFIRMED",
+#                 "END:VEVENT"
+#             ])
+
+#         # OOF event if create_oof is True
+#         if create_oof:
+#             display_name = school_data.get("displayName", "Schule") if school_data else "Schule"
+#             address = school_data.get("address", "Unbekannte Adresse") if school_data else "Unbekannte Adresse"
+#             oof_description = (
+#                 "Sehr geehrte Damen und Herren,\\n\\n"
+#                 f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str} "
+#                 "wieder erreichen.\\n\\n"
+#                 f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
+#             )
+
+#             debug_log_func(f"""Alles klar. Das ist die Out Of Office Notiz: 
+# {oof_description}""")
+
+#             oof_location = f"{display_name} ({address})"
+#             ics_content.extend([
+#                 "BEGIN:VEVENT",
+#                 "CLASS:PUBLIC",
+#                 f"CREATED:{creation_date}",
+#                 f"DESCRIPTION:{oof_description}",
+#                 f"DTEND;VALUE=DATE:{end_date_ics}",
+#                 f"DTSTART;VALUE=DATE:{start_date_ics}",
+#                 f"LOCATION:{oof_location}",
+#                 "PRIORITY:5",
+#                 "SEQUENCE:0",
+#                 "SUMMARY;LANGUAGE=de:Berufsschule",
+#                 "TRANSP:OPAQUE",
+#                 "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
+#                 "X-MICROSOFT-CDO-IMPORTANCE:1",
+#                 "X-MICROSOFT-CDO-DISALLOW-COUNTER:FALSE",
+#                 "X-MS-OLK-AUTOFILLLOCATION:FALSE",
+#                 "X-MS-OLK-CONFTYPE:0",
+#                 "END:VEVENT"
+#             ])
+
+#         ics_content.append("END:VCALENDAR")
+
+#         with open(file_path, 'w', encoding='utf8') as ics_file:
+#             ics_file.write("\n".join(ics_content))
+
+#         debug_log_func(f"ICS-Datei erstellt: {file_path}")
+#         return file_path
+#     else:
+#         debug_log_func("Keine Stunden gefunden.")
+#         return None
+
+
+def create_ics_file_for_week(school_days_subjects_teachers, schoolname, output_dir="kalender", school_data=None,
+        name="", betrieb="", email="", debug_log_func=print):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    sorted_lessons = sorted(school_days_subjects_teachers, key=lambda x: (x["lesson_date"], x["start_time"]))
-    filename = f"{schoolname}_stundenplan_woche.ics"
+    # Sort lessons by (date, start_time)
+    sorted_lessons = sorted(
+        school_days_subjects_teachers, 
+        key=lambda x: (x["lesson_date"], x["start_time"])
+    )
+    schoolname = school_data.get('loginSchool', "Schule")
+    filename = f"{schoolname.lower()}_stundenplan_woche.ics"
     file_path = os.path.join(output_dir, filename)
-    print(f"Anzahl gefundener Stunden: {len(sorted_lessons)}")
-    if len(sorted_lessons) > 0:
-        choice = input("Soll eine Out Of Office Notiz erstellt werden? (Y/N): ")
-        create_oof = (choice.lower() == "y")
+    debug_log_func(f"Anzahl gefundener Stunden: {len(sorted_lessons)}")
 
-        ics_content = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "CALSCALE:GREGORIAN"
-        ]
+    if len(sorted_lessons) == 0:
+        debug_log_func("Keine Stunden gefunden.")
+        return None
+    # ----------------------------------------------------------------
+    # 1) Build the ICS header
+    # ----------------------------------------------------------------
+    ics_content = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "CALSCALE:GREGORIAN"
+    ]
 
-        
+    # For lesson VEVENT creation below
+    first_lesson_dt = datetime.datetime.combine(
+        sorted_lessons[0]["lesson_date"],
+        sorted_lessons[0]["start_time"]
+    )
+    creation_date = first_lesson_dt.strftime("%Y%m%dT%H%M%S")
 
-        if sorted_lessons:
-            earliest_date = min(lesson["lesson_date"] for lesson in sorted_lessons)
-            latest_date = max(lesson["lesson_date"] for lesson in sorted_lessons)
+    # ----------------------------------------------------------------
+    # 2) Create VEVENTS for *all lessons*
+    # ----------------------------------------------------------------
+
+    for lesson in sorted_lessons:
+        event_start = datetime.datetime.combine(
+            lesson["lesson_date"], 
+            lesson["start_time"]
+        ).strftime("%Y%m%dT%H%M%S")
+
+        event_end = datetime.datetime.combine(
+            lesson["lesson_date"], 
+            lesson["end_time"]
+        ).strftime("%Y%m%dT%H%M%S")
+
+        event_description = f"{lesson['subject']} - {lesson['teacher']}"
+
+        # Decide summary and description lines
+        if lesson["is_exam"]:
+            summary_line     = f"Prüfung {lesson['subject']}"
+            description_line = f"{event_description} Prüfung!"
+        elif lesson["is_additional"]:
+            summary_line     = f"Ersatzstunde {lesson['subject']}"
+            description_line = f"{event_description} Ersatz!"
         else:
-            earliest_date = datetime.date.today()
-            latest_date = earliest_date
+            summary_line     = lesson["subject"]
+            description_line = event_description
 
-        # ICS date strings
-        start_date_ics = earliest_date.strftime("%Y%m%d")
-        end_date_ics = (latest_date + datetime.timedelta(days=1)).strftime("%Y%m%d")
+        ics_content.extend([
+            "BEGIN:VEVENT",
+            f"DTSTART:{event_start}",
+            f"DTEND:{event_end}",
+            f"SUMMARY:{summary_line}",
+            f"DESCRIPTION:{description_line}",
+            f"LOCATION:{lesson['teacher']}",
+            "STATUS:CONFIRMED",
+            "END:VEVENT"
+        ])
 
-        next_workday_dt = get_next_workday(latest_date)
-        next_workday_str = next_workday_dt.strftime("%d.%m.%Y")
+    # ----------------------------------------------------------------
+    # 3) Identify consecutive blocks of days for separate OOF events
+    # ----------------------------------------------------------------
+    # Gather all unique dates (ignore times).
+    unique_days = sorted(set(lesson["lesson_date"] for lesson in sorted_lessons))
 
-        # Creation date/time for ICS
-        if sorted_lessons:
-            first_lesson_dt = datetime.datetime.combine(sorted_lessons[0]["lesson_date"], sorted_lessons[0]["start_time"])
-            creation_date = first_lesson_dt.strftime("%Y%m%dT%H%M%S")
-        else:
-            creation_date = datetime.datetime.now().strftime("%Y%m%dT%H%M%S")
-
-        # Add lesson events
-        for lesson in sorted_lessons:
-            event_start = datetime.datetime.combine(lesson["lesson_date"], lesson["start_time"]).strftime("%Y%m%dT%H%M%S")
-            event_end = datetime.datetime.combine(lesson["lesson_date"], lesson["end_time"]).strftime("%Y%m%dT%H%M%S")
-            event_description = f"{lesson['subject']} - {lesson['teacher']}"
-
-            if lesson["is_exam"]:
-                summary_line = f"Prüfung {lesson['subject']}"
-                description_line = f"{event_description} Prüfung!"
-            elif lesson["is_additional"]:
-                summary_line = f"Ersatzstunde {lesson['subject']}"
-                description_line = f"{event_description} Prüfung!"
+    if create_oof and unique_days:
+        # Group those days into consecutive blocks
+        blocks = []
+        current_block = [unique_days[0]]
+        for day in unique_days[1:]:
+            # If difference is more than 1 day, start a new block
+            if (day - current_block[-1]).days > 1:
+                blocks.append(current_block)
+                current_block = [day]
             else:
-                summary_line = lesson["subject"]
-                description_line = event_description
+                current_block.append(day)
+        # Append the final block
+        blocks.append(current_block)
 
-            ics_content.extend([
-                "BEGIN:VEVENT",
-                f"DTSTART:{event_start}",
-                f"DTEND:{event_end}",
-                f"SUMMARY:{summary_line}",
-                f"DESCRIPTION:{description_line}",
-                f"LOCATION:{lesson['teacher']}",
-                "STATUS:CONFIRMED",
-                "END:VEVENT"
-            ])
+        # Access info from school_data if needed
+        display_name = school_data.get("displayName", "Schule") if school_data else "Schule"
+        address      = school_data.get("address", "Unbekannte Adresse") if school_data else "Unbekannte Adresse"
 
-        # OOF Event
-        if create_oof:
-            display_name = school_data.get("displayName", "Schule") if school_data else "Schule"
-            address = school_data.get("address", "Unbekannte Adresse") if school_data else "Unbekannte Adresse"
-            # Build multiline description with embedded newlines.
-            # Each line is separated by \n. 
+        # ----------------------------------------------------------------
+        # 4) Create an OOF VEVENT for *each* block
+        # ----------------------------------------------------------------
+        for block in blocks:
+            block_earliest = min(block)
+            block_latest   = max(block)
+
+            # ICS for a full-day event goes until the next day
+            start_date_ics = block_earliest.strftime("%Y%m%d")
+            end_date_ics   = (block_latest + datetime.timedelta(days=1)).strftime("%Y%m%d")
+
+            # Next workday (if you use it in the message)
+            next_workday_dt = get_next_workday(block_latest)
+            next_workday_str = next_workday_dt.strftime("%d.%m.%Y")
+
+            # Build the OOF description
             oof_description = (
                 "Sehr geehrte Damen und Herren,\\n\\n"
-                "leider bin ich derzeit außer Haus. Sie können mich ab dem "
-                f"{next_workday_str} wieder erreichen.\\n\\n"
-                "Viele Grüße,\\n\\n"
-                f"{name}\\n"
-                f"{betrieb}\\n\\n"
-                f"{email}\\n\\n"
+                f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str} "
+                "wieder erreichen.\\n\\n"
+                f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
             )
-            oof_location = f"{display_name} ({address})"
             
+            debug_log_func(
+                f"OOF-Block: {block_earliest} → {block_latest} | "
+                f"Nächster Arbeitstag: {next_workday_str}"
+                f"""
+                OOF-Notiz: {oof_description.strip()}"""
+            )
+
+            oof_location = f"{display_name} ({address})"
+
             ics_content.extend([
                 "BEGIN:VEVENT",
                 "CLASS:PUBLIC",
@@ -468,256 +474,42 @@ def create_ics_file_for_week(school_days_subjects_teachers, schoolname, output_d
                 "TRANSP:OPAQUE",
                 "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
                 "X-MICROSOFT-CDO-IMPORTANCE:1",
-                "X-MICROSOFT-DISALLOW-COUNTER:FALSE",
+                "X-MICROSOFT-CDO-DISALLOW-COUNTER:FALSE",
                 "X-MS-OLK-AUTOFILLLOCATION:FALSE",
                 "X-MS-OLK-CONFTYPE:0",
                 "END:VEVENT"
             ])
 
-        ics_content.append("END:VCALENDAR")
+    # ----------------------------------------------------------------
+    # Finalize
+    # ----------------------------------------------------------------
+    ics_content.append("END:VCALENDAR")
 
-        # Write file
-        with open(file_path, 'w', encoding='utf8') as ics_file:
-            ics_file.write("\n".join(ics_content))
+    with open(file_path, 'w', encoding='utf8') as ics_file:
+        ics_file.write("\n".join(ics_content))
 
-        print(f"ICS-Datei für die Woche erstellt: {file_path}")
-
-        # If you use a global variable to store the file path
-        global global_file_path
-        global_file_path = file_path
-    else:
-        print("Keine Stunden gefunden.")
+    debug_log_func(f"ICS-Datei erstellt: {file_path}")
+    return file_path
 
 def open_ics_with_default_app(ics_file_path):
-    # Check if the .ics file exists
     if not os.path.exists(ics_file_path):
         print(f"Die Datei {ics_file_path} existiert nicht.")
         return
-    
-    # Open the .ics file using the default application (usually Outlook)
     try:
-        subprocess.run(["start", ics_file_path], shell=True)
-        print(f"Die .ics Datei {ics_file_path} wurde geöffnet.")
+        if os.name == "nt":
+            os.startfile(ics_file_path)
+        else:
+            subprocess.run(["open", ics_file_path])
     except Exception as e:
         print(f"Ein Fehler ist aufgetreten: {e}")
-    
-# Funktion, um den Beginn der Woche zu ermitteln
-def get_start_of_week(date_str):
-    
-    if isinstance(date_str, datetime.datetime):
-        date_str = date_str.strftime("%Y-%m-%d")  # Convert datetime to string
-    
-    date = datetime.datetime.strptime(date_str, "%Y-%m-%d")
-    start_of_week = date - datetime.timedelta(days=date.weekday())  # Montag der angegebenen Woche
-    return start_of_week.strftime("%Y-%m-%d")
 
-
-def generate_sleek_session():
-    # Get the current time in UTC format
-    current_time = datetime.datetime.utcnow().isoformat() + "Z"
-    
-    # Create the dictionary with the 'init' timestamp
-    sleek_session_dict = {"init": current_time}
-    
-    # Convert the dictionary to a string
-    sleek_session_str = str(sleek_session_dict)
-    
-    # URL-encode the string
-    sleek_session_encoded = urllib.parse.quote(sleek_session_str)
-    
-    # Return the generated __sleek_session cookie value
-    return f"_sleek_session={sleek_session_encoded}"
-
-def get_headers(tenant_id, schoolname, server, login_name):
-    #print(schoolname)
-    jsession_id, trace_id = get_cookies(server=server, loginName=login_name)
-    sleek_session = generate_sleek_session()
-    headers = {
-        'accept': 'application/json',
-        'accept-encoding': 'gzip, deflate, br, zstd',
-        'accept-language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
-        'priority': 'u=1, i',
-        'referer': f'https://{server}/WebUntis',
-        'cookie': f'schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; traceId={trace_id}; JSESSIONID={jsession_id}; _sleek_session={sleek_session}',
-        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        'tenant-id': f'{tenant_id}',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
-    }
-    return headers
-
-def get_x_crsf_headers(tenant_id, schoolname, server, login_name):
-    #print(schoolname)
-    
-    jsession_id, trace_id = get_cookies(server=server, loginName=login_name)
-    sleek_session = generate_sleek_session()
-    if debug_mode:
-        print("TenantID: " + tenant_id)
-        print("jsession: " + jsession_id)
-    headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-encoding': 'gzip, deflate, br, zstd',
-        'accept-language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
-        'priority': 'u=1, i',
-        'referer': f'https://{server}/WebUntis',
-        'cookie': f'JSESSIONID={jsession_id}; schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; traceId={trace_id}; _sleek_session={sleek_session}',
-        'referer': 'https://webuntis.com/',
-        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'same-origin',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 OPR/114.0.0.0'
-    }
-    return headers
-def get_class_id_headers(tenant_id, schoolname, server, login_name):
-    
-    jsession_id = jsessionid #get_cookies(server=server, loginName=login_name)
-    trace_id = traceid #get_cookies(server=server, loginName=login_name)
-    sleek_session = generate_sleek_session()
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "accept-encoding": "gzip, deflate, br, zstd",
-        "accept-language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
-        "anonymous-school": f"{login_name}",
-        "cookie": f"c0261b8e8a54040ba4c7dca9e81e3a451e98f870; schoolname=\"_{schoolname}\"; Tenant-Id=\"{tenant_id}\"; traceId={trace_id}; JSESSIONID={jsession_id}; _sleek_session={sleek_session}",
-        "priority": "u=1, i",
-        "referer": f"https://{server}/timetable-new/class",
-        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-    }
-        #"cookie": f"c0261b8e8a54040ba4c7dca9e81e3a451e98f870; schoolname=\"_{schoolname}\"; Tenant-Id=\"{tenant_id}\"; traceId={trace_id}; JSESSIONID={jsession_id}; _sleek_session={sleek_session}",
-        
-    return headers
-
-
-def get_x_crsf_token(server, loginName, school):
-    url = f"https://{server}/WebUntis/?school={loginName}#/basic/login"
-    headers = get_x_crsf_headers(tenant_id=school["tenantId"], schoolname=school["loginName"], server=school["server"], login_name=school["loginSchool"])
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        html_content = response.text
-        with open("./file.txt", "w") as f:
-            f.write(html_content)
-        # Define the pattern to extract the CSRF token
-        csrf_token_pattern = r'"csrfToken":\s*"([^"]+)"'
-
-        # Search for the CSRF token using regex
-        match = re.search(csrf_token_pattern, html_content)
-
-        if match:
-            csrf_token = match.group(1)
-            if debug_mode:
-                print(f"CSRF Token: {csrf_token}")
-            return csrf_token
-        else:
-            print("CSRF Token not found")
-    else:
-        print(f"Failed to fetch page, status code: {response.status_code}")
-
-
-def get_cookies(server, loginName):
-    
-    #school["loginName"]
-    url = f"https://{server}/WebUntis/?school={loginName}"
-    if debug_mode:
-        print(url)
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "referer": "https://webuntis.com/",
-        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-    }
-    try:
-        session = requests.Session()
-        response = session.get(url, headers=headers)
-        cookies = response.cookies.get_dict()
-        jsessionid = cookies.get('JSESSIONID')
-        traceid = cookies.get('traceId')
-
-        if debug_mode:
-            print(f"Cookies: {cookies}")
-            print(f"JSESSIONID: {jsessionid}")
-            print(f"traceId: {traceid}")
-
-        return jsessionid, traceid
-    except Exception as e:
-        print(f"Error getting cookies: {e}")
-        return None, None
-
-def get_classes_from_text(school):
-    server = school["server"]
-
-    session = requests.Session()
-    # API URL to get classes information
-    api_url = f"https://{server}/WebUntis/api/rest/view/v1/timetable/filter?resourceType=CLASS&timetableType=STANDARD"
-    response = requests.get(api_url, headers=get_class_id_headers(tenant_id=school["tenantId"], schoolname=school["loginName"], server=school["server"], login_name=school["loginSchool"]))
-    data = response.json()
-    #print(data)
-    if response.status_code == 200:
-        classes = data["classes"]
-        #class_data = data["classes"]
-        #print(class_data)
-        previous_class_name = ""
-        # Collect class information
-        
-        class_data = []
-        for class_group in classes:
-        #for class_group in class_data:
-            class_info = {
-                "id": class_group["class"]["id"],
-                "shortName": class_group["class"]["shortName"],
-                "longName": class_group["class"]["longName"],
-                "displayName": class_group["class"]["displayName"]
-            }
-            class_data.append(class_info)
-            current_class_name = class_info["displayName"]
-            # Print class information
-            if standard_klasse == "None"  or standard_klasse == "" or is_default_usage == False:
-                print(f"""Anzeigename: {current_class_name}
-                """)
-                
-        
-        if standard_klasse == "None"or standard_klasse == "" or is_default_usage == False:
-            class_short_name = input("Bitte geben Sie den Klassennamen (Kurzname) ein: ")
-            if standard_klasse == "None" or standard_klasse == "":
-                choiche = input("Soll der Klassennamen als Standard gespeichert werden? (Y/N):")
-            if choiche.lower() == "y":
-                update_config_env("Klasse", class_short_name)
-                print("Standard Klassenname gespeichert.")
-        else:
-            class_short_name = standard_klasse.strip()
-        # Search for class by 'shortName'
-        matching_class = next((cls for cls in class_data if cls["shortName"] == class_short_name), None)
-        if debug_mode:
-            print(class_data)
-        if matching_class:
-            print(f"Alles klar. {matching_class['displayName']} wurde ausgewählt.")
-            return matching_class["id"]
-        else:
-            print("Klassennamen ungültig oder nicht gefunden. Bitte versuchen Sie es erneut.")
-            return None
-    else:
-        print(f"{data['errorCode']}: {data['errorMessage']}")
-        return None
-
-def get_schools(city):
+def get_schools(city, debug_mode=False):
     url = "https://mobile.webuntis.com/ms/schoolquery2"
-    payload = '{"id":"wu_schulsuche-1736413279181","method":"searchSchool","params":[{"search":"' + city + '"}],"jsonrpc":"2.0"}'
+    payload = (
+        '{"id":"wu_schulsuche-1736413279181","method":"searchSchool","params":[{"search":"'
+        + city
+        + '"}],"jsonrpc":"2.0"}'
+    )
     header = {
         "accept": "application/json, text/plain, */*",
         "accept-encoding": "gzip, deflate, br, zstd",
@@ -732,192 +524,711 @@ def get_schools(city):
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-site",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " \
+                      "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     }
 
     response = requests.post(url, headers=header, data=payload)
-    response.raise_for_status()  # Wenn der Statuscode nicht 2xx ist, eine HTTPError auslösen
-    json = response.json()
-    schools = json["result"]["schools"]
-    counter = 0
+    response.raise_for_status()
+    json_resp = response.json()
+    schools = json_resp["result"]["schools"]
+    
     school_data = []
-    for school in schools:
+    for s in schools:
         if debug_mode:
-            print(school)
-        login_name = school["loginName"].lower()
+            print("Found school:", s)
+        login_name = s["loginName"].lower()
         encoded_bytes = base64.b64encode(login_name.encode('utf-8'))
         login_base64 = encoded_bytes.decode('utf-8')
-
         school_data.append({
-            "displayName": school["displayName"],
-            "address": school["address"],
-            "serverUrl": school["serverUrl"],
-            "tenantId": school["tenantId"],
-            "server": school["server"],
+            "displayName": s["displayName"],
+            "address": s["address"],
+            "serverUrl": s["serverUrl"],
+            "tenantId": s["tenantId"],
+            "server": s["server"],
             "loginName": login_base64,
-            "loginSchool": school["loginName"]
+            "loginSchool": s["loginName"]
         })
-        school_data[counter]["displayName"]
-        if standard_schulnummer == "None" or standard_schulnummer == "" or is_default_usage == False:
-            print(f"""
-                Nr.{counter}
-                Anzeigename: {school_data[counter]["displayName"]}
-                Addresse: {school_data[counter]["address"]}
-                Server: {school_data[counter]["server"]}
-                Tenant ID: {school_data[counter]["tenantId"]}
+    return school_data
 
-            """)
-        #print("Server URL: " + school_urls[counter])
-        counter += 1
-    if standard_schulnummer == "None"  or standard_schulnummer == "" or is_default_usage == False:
-        school_number = int(input("Bitte geben sie die Schulnummer ein: "))
-        if standard_schulnummer == "None" or standard_schulnummer == "":
-            choice = input("Soll diese Schulnummer als Standard gespeichert werden? (Y/N): ")
-        if choice.lower() == "y":
-            update_config_env('Schulnummer', school_number)
-            print("Standard Schulnummer gespeichert.")
-        #eingaben überprüfen
-        if 0 <= school_number < counter:
-            print(f"Alles klar. {school_data[school_number]['displayName']} wurde ausgewählt.")
-            return school_data[school_number]
-        else:
-            print("Schulnummer ungültig. Bitte versuchen Sie es erneut.")
-            return None
-        # except ValueError:
-        #     print("Keine gültige Zahl. Bitte versuchen Sie es erneut.")
-        #     return None
-    else:
-        print(f"Alles klar. {school_data[int(standard_schulnummer)]['displayName']} wurde aus den Default Settings ausgewählt")
-        return school_data[int(standard_schulnummer)]
+def get_classes(server, school, jsession_id, trace_id, debug_mode=False):
+    api_url = f"https://{server}/WebUntis/api/rest/view/v1/timetable/filter?resourceType=CLASS&timetableType=STANDARD"
+    response = requests.get(
+        api_url,
+        headers=get_class_id_headers(
+            tenant_id=school["tenantId"],
+            schoolname=school["loginName"],
+            server=school["server"],
+            login_name=school["loginSchool"],
+            jsession_id=jsession_id,
+            trace_id=trace_id
+        )
+    )
+    if response.status_code != 200:
+        return None, response.text
+    data = response.json()
+    classes = data["classes"]
+    class_data = []
+    for c in classes:
+        cinfo = c["class"]
+        class_data.append({
+            "id": cinfo["id"],
+            "shortName": cinfo["shortName"],
+            "longName": cinfo["longName"],
+            "displayName": cinfo["displayName"]
+        })
+    return class_data, None
+
+def fetch_data_for_next_weeks(
+    school,
+    class_id,
+    week_count,
+    headers,
+    debug_mode=False,
+    debug_log_func=print
+):
+    current_date = datetime.datetime.now()
+    start_of_current_week = get_start_of_week(current_date)
+    weeks_to_fetch = [start_of_current_week]
+    for i in range(1, week_count):
+        date_plus_weeks = current_date + datetime.timedelta(weeks=i)
+        start_of_next_week = get_start_of_week(date_plus_weeks)
+        weeks_to_fetch.append(start_of_next_week)
+
+    if debug_mode:
+        debug_log_func(f"Weeks to fetch: {weeks_to_fetch}")
+
+    all_school_days = []
+    server = school["server"]
+
+    for week_start in weeks_to_fetch:
+        api_url = (
+            f"https://{server}/WebUntis/api/public/timetable/weekly/data"
+            f"?elementType=1&elementId={class_id}&date={week_start}&formatId=2&filter.departmentId=-1"
+        )
+        debug_log_func(f"Hole Daten für Woche: {week_start}")
+        timetable_data = fetch_timetable_data(api_url, headers)
+        if timetable_data:
+            results = get_school_days_subjects_teachers(timetable_data, debug_mode)
+            all_school_days.extend(results)
+
+    return all_school_days
+
+
+# -----------------------------
+# PyQt5 GUI Implementation
+# -----------------------------
+
+
+class MainWindow(QMainWindow):
+    """A QMainWindow with a sidebar and a central stacked widget
+       to display different pages (Main Menu, Settings, Fetch Timetable)."""
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("WebLook - Number one WebUntis to Outlook Tool!")
+        self.resize(1000, 600)
+
+        # Load config
+        self.config_data = read_config_env()
+
+        # Central widget with a horizontal layout: [Sidebar | StackedWidget]
+        central_widget = QWidget()
+        main_layout = QHBoxLayout(central_widget)
+        main_layout.setContentsMargins(0,0,0,0)
+        main_layout.setSpacing(0)
+
+        # Create sidebar
+        self.sidebar = self.create_sidebar()
+        main_layout.addWidget(self.sidebar, 1)
+
+        # Create stacked widget
+        self.stacked_widget = QStackedWidget()
+        main_layout.addWidget(self.stacked_widget, 5)
+
+        # Create pages
+        self.main_menu_page = MainMenuPage(self.config_data, self)
+        self.fetch_page = FetchTimetablePage(self.config_data, self)
+        self.settings_page = SettingsPage(self.config_data, self)
         
-    
 
-# Funktion zum Abrufen der Stundenplandaten von der API
-def fetch_timetable_data(url, headers):
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()  # Wenn der Statuscode nicht 2xx ist, eine HTTPError auslösen
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Fehler bei der Anfrage: {e}")
-        return None
-    except ValueError as e:
-        print(f"Fehler beim Parsen von JSON: {e}")
-        return None
+        # Add pages to stacked widget
+        self.stacked_widget.addWidget(self.main_menu_page)   # index 0
+        # Changed the order of the nav bar to main-->fetch-->settings
+        
 
-# Funktion zum Abrufen von Schultagen, Fächern und Lehrern aus den Stundenplandaten
-def get_school_days_subjects_teachers(json_data):
-    # Mapping von Datum auf Wochentag
-    date_to_day = {
-        0: 'Montag',
-        1: 'Dienstag',
-        2: 'Mittwoch',
-        3: 'Donnerstag',
-        4: 'Freitag',
-        5: 'Samstag',
-        6: 'Sonntag',
-    }
-    # Hole die elementPeriods aus der Antwort
-    element_periods = json_data['data']['result']['data']['elementPeriods']
-    if element_periods is None:
-        element_periods = json_data['data']['result']['data']['elements']
-    # Hole die elementGroups aus der Antwort
-    with open("json_output.txt","w") as file:
-        file.write(json.dumps(json_data, indent=4))
+        self.stacked_widget.addWidget(self.settings_page)    # index 1
 
-    #print(element_periods)l
-    school_days_subjects_teachers = []
+        self.stacked_widget.addWidget(self.fetch_page)       # index 2
+        
 
-    # Iteriere über jede Stundenzeile für das jeweilige Element
-    for element_id, periods in element_periods.items():
-        print()
-        for period in periods:
-            
-            date = period['date']
-            # Konvertiere das Datum (YYYYMMDD) in ein datetime-Objekt
-            date_str = str(date)
-            year = int(date_str[:4])
-            month = int(date_str[4:6])
-            day = int(date_str[6:])
-            lesson_date = datetime.date(year, month, day)
+        # Set central widget
+        self.setCentralWidget(central_widget)
 
-            # Bestimme den Wochentag (0=Montag, 1=Dienstag, ..., 6=Sonntag)
-            day_of_week = lesson_date.weekday()
+        # Apply a style sheet for a modern look
+        self.setStyleSheet(self.load_stylesheet())
 
-            # Mappe die Wochentagsnummer auf den Wochentagnamen
-            school_day = date_to_day[day_of_week]
+    def create_sidebar(self):
+        """Create a vertical sidebar with nav buttons."""
+        frame = QFrame()
+        frame.setObjectName("sidebar")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(0,0,0,0)
+        layout.setSpacing(10)
 
-            # Extrahiere das Fach und den Lehrer
-            lesson_code = period.get('studentGroup', '')
-            #print(lesson_code)
-            if '_' in lesson_code:
-                parts = lesson_code.split('_', 1)
-                subject = parts[0]  # Alles vor dem ersten '_'
-                teacher = parts[1] if len(parts) > 1 else 'Unbekannt'  # Alles nach dem ersten '_'
-                teacher = teacher.split("_")[1]
+        # Title or big label
+        brand_label = QLabel("WebLook")
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+        brand_label.setFont(font)
+        brand_label.setStyleSheet("color: white; margin:20px;")
+        layout.addWidget(brand_label, 0, Qt.AlignHCenter)
+
+        # Nav Buttons
+        btn_main_menu = QPushButton("Start Menü")
+        btn_main_menu.setIcon(QIcon("./assets/icons/inverted/main_menu_inverted.png"))
+        btn_main_menu.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
+        layout.addWidget(btn_main_menu)
+
+        btn_fetch = QPushButton("Stundenplan")
+        btn_fetch.setIcon(QIcon("./assets/icons/inverted/timetable_inverted.png"))
+        btn_fetch.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
+        layout.addWidget(btn_fetch)
+
+        btn_settings = QPushButton("Einstellungen")
+        btn_settings.setIcon(QIcon("./assets/icons/inverted/setting_inverted.png"))
+        btn_settings.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
+        layout.addWidget(btn_settings)
+
+        layout.addStretch()  # push everything up
+
+        return frame
+
+    def load_stylesheet(self):
+        return """
+        /* Main Window background */
+        QMainWindow {
+            background-color: #2B2B2B;
+        }
+
+        /* Sidebar remains #333, as before */
+        #sidebar {
+            background-color: #333;
+        }
+
+        /* Style the navigation buttons on sidebar */
+        QPushButton {
+            background-color: #444;
+            color: white;
+            border: none;
+            padding: 10px;
+            text-align: left;
+            font-size: 14px;
+        }
+        QPushButton:hover {
+            background-color: #555;
+        }
+
+        QMessageBox {
+            background-color: #333;
+            color: #ddd;
+            text-align: center;
+        }
+
+        /* Make all labels text a light color */
+        QLabel {
+            color: #ddd;
+            font-size: 14px;
+        }
+
+        /* Ensure the stacked widget / central pages also have a dark background */
+        QStackedWidget {
+            background-color: #2B2B2B;
+        }
+
+        /* Specifically style your SettingsPage (or any other "central page") */
+        #settingsPage {
+            background-color: #2B2B2B; /* same dark color */
+        }
+
+        QCheckBox {
+            background-color: #555;
+            color: #fff;
+            padding: 5px;
+            font-size: 14px;
+            min-height: 23px;
+        }
+
+        /* Dark background for scroll area contents */
+        QScrollArea {
+            background: #2B2B2B;
+        }
+        QScrollArea QWidget {
+            background: #2B2B2B;
+            color: #ddd;
+        }
+
+        /* Spinbox, LineEdits, TextEdits, etc. */
+        QSpinBox {
+            background-color: #555;
+            color: #fff;
+            /*padding: 5px;*/
+            font-size: 14px;
+            min-height: 23px;
+        }
+        QLineEdit {
+            background-color: #555;
+            color: #fff;
+            border: 1px solid #777;
+            padding: 5px;
+        }
+        QTextEdit {
+            background-color: #222;
+            color: #ccc;
+            border: 1px solid #555;
+            font-size: 13px;
+        }
+         /* ComboBox: dunkles Design, selbe Höhe wie Buttons */
+        QComboBox {
+            background-color: #555;
+            color: #fff;
+            border: 1px solid #777;
+            padding: 5px;
+            font-size: 14px;
+            min-height: 23px; /* Anpassen, falls der Button höher/niedriger ist */
+        }
+        /* Drop-down-Button innen in der ComboBox */
+        QComboBox::drop-down {
+            subcontrol-origin: padding;
+            subcontrol-position: top right;
+            width: 25px; /* Breite des Pfeil-Bereichs */
+            border-left: 1px solid #777;
+            background-color: #444;
+        }
+        /* Das ausklappbare Menü */
+        QComboBox QAbstractItemView {
+            background-color: #2B2B2B;
+            color: #fff;
+            selection-background-color: #555;
+            selection-color: #fff;
+        }
+        """
+
+
+
+class MainMenuPage(QWidget):
+    """Represents the main menu page."""
+    def __init__(self, config_data, parent=None):
+        super().__init__(parent)
+        self.setObjectName("mainMenuPage")
+        self.config_data = config_data
+        layout = QVBoxLayout(self)
+        layout.setSpacing(20)
+
+        title = QLabel("Willkommen zu WebLook - Hauptmenü")
+        font = QFont()
+        font.setPointSize(18)
+        font.setBold(True)
+        title.setFont(font)
+        layout.addWidget(title, 0, Qt.AlignTop)
+
+        desc = QLabel("")
+        layout.addWidget(desc)
+
+        # Add a placeholder label or something
+        info = QLabel("Nutzen Sie die Seitenleiste, um zu navigieren:\n\n1) Stundenplan abrufen\n2) Einstellungen\n3) Schließen Sie das Fenster, um das Programm zu beenden")
+        layout.addWidget(info)
+        layout.addStretch()
+
+
+class SettingsPage(QWidget):
+    """Represents the settings page. Allows editing config.env values."""
+    def __init__(self, config_data, parent=None):
+        super().__init__(parent)
+        self.setObjectName("settingsPage")
+        self.config_data = config_data
+
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(scroll)
+
+        # Container widget inside scroll
+        container = QWidget()
+        scroll.setWidget(container)
+        grid = QGridLayout(container)
+        grid.setSpacing(10)
+        container.setLayout(grid)
+
+        title = QLabel("Einstellungen")
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+        title.setFont(font)
+        grid.addWidget(title, 0, 0, 1, 2)
+
+        self.entries = {}
+        row = 1
+        settings_keys = [
+            "Name", "Email", "Betrieb",
+            "Stadt/Adresse", "Klasse",
+            "Schulnummer", "Wochen", "Dateipfad", "Debugging"
+        ]
+        for key in settings_keys:
+            label = QLabel(key)
+            label.setMinimumWidth(120)
+            grid.addWidget(label, row, 0, 1, 1)
+            if not key == "Debugging":
+                line_edit = QLineEdit()
+                val = self.config_data.get(key, "")
+                line_edit.setText(val)
+                self.entries[key] = line_edit
+                grid.addWidget(line_edit, row, 1, 1, 1)
+            if key == "Dateipfad":
+                browse_btn = QPushButton()
+                browse_btn.setIcon(QIcon("./assets/icons/inverted/browse_inverted.png"))
+                browse_btn.clicked.connect(self.getFolder)
+                grid.addWidget(browse_btn, row, 2, 1, 1)
+
+            if key == "Debugging":
+                self.check_box = QCheckBox()
+                #self.check_box.setText("Debugging ein/ausschalten")
+                val = self.config_data.get(key, False)
+                if val.lower() == "true":
+                    self.check_box.setChecked(True)
+                    self.check_box.setText("Debugging ist eingeschaltet")
+                else:
+                    self.check_box.setChecked(False)
+                    self.check_box.setText("Debugging ist ausgeschaltet")
+                #self.entries[key] = self.check_box
+                grid.addWidget(self.check_box, row, 1, 1, 1)
+            row += 1
+        self.check_box.clicked.connect(self.change_debug)
+        btn_save = QPushButton("Speichern")
+        btn_save.setIcon(QIcon("./assets/icons/inverted/save_inverted.png"))
+        btn_save.clicked.connect(self.save_settings)
+        grid.addWidget(btn_save, row, 0, 1, 2)
+        self.refresh()
+
+    def change_debug(self, checked):
+        if self.check_box.isChecked():
+            update_config_env("Debugging", "True")
+            self.check_box.setText("Debugging ist eingeschaltet")
+            self.refresh()
+            print("Debugging changed to True")
+        else:
+            update_config_env("Debugging", "False")
+            self.check_box.setText("Debugging ist ausgeschaltet")
+            self.refresh()
+            print("Debugging changed to False")
+    def getFolder(self):
+        save_file_path = str(QFileDialog.getExistingDirectory(None, "Ordner auswählen", directory=self.config_data["Dateipfad"]))
+        if save_file_path:
+            update_config_env("Dateipfad", save_file_path)
+            self.refresh() # Refresh the entries form config.env
+            QMessageBox.information(self, "Erfolgreich", "Der Standard Speicherort wurde geändert")
+
+        #print(file_path)
+    def refresh(self):
+        """Refresh entries with latest config."""
+        self.config_data = read_config_env()
+        for key, line_edit in self.entries.items():
+            val = self.config_data.get(key, "")
+            line_edit.setText(val)
+
+    def save_settings(self):
+        for key, line_edit in self.entries.items():
+            new_val = line_edit.text().strip()
+            update_config_env(key, new_val)
+            read_config_env(file_path="./config.env")
+        QMessageBox.information(self, "Einstellungen", "Die Einstellungen wurden erfolgreich gespeichert!")
+        self.refresh()
+
+
+class FetchTimetablePage(QWidget):
+    def __init__(self, config_data, parent=None):
+        super().__init__(parent)
+        self.config_data = config_data
+
+        layout = QVBoxLayout(self)
+        title = QLabel("Stundenplan abrufen")
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+        title.setFont(font)
+        layout.addWidget(title)
+
+        # 1) Checkbox bzw. Button zum Umschalten Defaults
+        self.use_defaults = False
+        self.toggle_defaults_button = QPushButton("Nutze KEINE Defaults (klicken zum Umschalten)")
+        self.toggle_defaults_button.clicked.connect(self.toggle_defaults)
+        layout.addWidget(self.toggle_defaults_button)
+
+        # 2) Stadt-Eingabe
+        city_layout = QHBoxLayout()
+        city_label = QLabel("Stadt/Adresse:")
+        city_label.setToolTip("Wenn die Eingabe der Stadt zu Fehlern führt geben sie die Adresse der Schule ein(Ohne PLZ und Ort)")
+        self.city_edit = QLineEdit()
+        self.city_edit.setToolTip("Wenn die Eingabe der Stadt zu Fehlern führt geben sie die Adresse der Schule ein(Ohne PLZ und Ort)")
+        city_layout.addWidget(city_label)
+        city_layout.addWidget(self.city_edit)
+        layout.addLayout(city_layout)
+
+        # 3) Button „Schulen laden“, sowie ComboBox für Schulnummer
+        load_schools_layout = QHBoxLayout()
+        self.load_schools_btn = QPushButton("Schulen laden")
+        self.load_schools_btn.setToolTip("Lädt die Schulen in die Box rechts neben an. Bitte aus der Liste eine Schule auswählen")
+        self.load_schools_btn.clicked.connect(self.on_load_schools_clicked)
+        load_schools_layout.addWidget(self.load_schools_btn)
+
+        self.schools_combo = QComboBox()
+        # Vorerst leer, füllen wir dynamisch
+        load_schools_layout.addWidget(self.schools_combo)
+        layout.addLayout(load_schools_layout)
+
+        # 4) Klassennamen-Eingabe
+        class_layout = QHBoxLayout()
+        self.class_label = QLabel("Klasse (Kurzname):")
+        self.class_edit = QLineEdit()
+        class_layout.addWidget(self.class_label)
+        class_layout.addWidget(self.class_edit)
+        layout.addLayout(class_layout)
+
+        # 5) Wochen
+        weeks_layout = QHBoxLayout()
+        weeks_label = QLabel("Anzahl Wochen (1-15):")
+        self.weeks_spin = QSpinBox()
+        self.weeks_spin.setRange(1, 15)
+        self.weeks_spin.setValue(1)
+        weeks_layout.addWidget(weeks_label)
+        weeks_layout.addWidget(self.weeks_spin)
+        layout.addLayout(weeks_layout)
+
+        # 6) Create Out Of Office CheckBox
+        create_oof_layout = QHBoxLayout()
+        self.create_oof_box = QCheckBox("Out Of Office")
+        create_oof_label = QLabel("Out Of Office Notiz erstellen?: ")
+        create_oof_layout.addWidget(create_oof_label)
+        create_oof_layout.addWidget(self.create_oof_box)
+        layout.addLayout(create_oof_layout)
+
+        #creat_oof_layout.setText("Out Of Office Notiz erstellen?")
+
+        # 6) Fetch Button
+        self.fetch_btn = QPushButton("Stundenplan abrufen!")
+        self.fetch_btn.clicked.connect(self.run_fetch)
+        layout.addWidget(self.fetch_btn)
+
+        # 7) Log Text
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        layout.addWidget(self.log_text)
+
+        self.setLayout(layout)
+        self.refresh()
+
+    def toggle_defaults(self):
+        self.use_defaults = not self.use_defaults
+        if self.use_defaults:
+            self.refresh()
+            self.toggle_defaults_button.setText("Nutze DEFAULTS (klicken zum Umschalten)")
+            self.city_edit.setText(self.config_data.get("Stadt/Adresse", ""))
+            self.class_edit.setText(self.config_data.get("Klasse", ""))
+            self.weeks_spin.setValue(int(self.config_data.get("Wochen", "1")))
+            self.load_schools_btn.click()
+        else:
+            self.refresh()
+            self.toggle_defaults_button.setText("Nutze KEINE Defaults (klicken zum Umschalten)")
+            self.city_edit.clear()
+            self.class_edit.clear()
+            self.weeks_spin.setValue(1)
+            self.schools_combo.clear()
+
+    def on_load_schools_clicked(self):
+        """Lädt Schulen der eingegebenen Stadt und füllt die ComboBox."""
+        self.log_text.clear()
+        debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
+        
+        # Falls man Defaults nutzen möchte, Laden der Standardstadt etc.
+        if self.use_defaults:
+            city = self.config_data.get("Stadt/Adresse", "None")
+            if not city or city == "None":
+                QMessageBox.warning(self, "Keine Default-Stadt", "Bitte Stadt/Adresse im config.env setzen oder Defaults deaktivieren.")
+                return
+        else:
+            city = self.city_edit.text().strip()
+            if not city:
+                QMessageBox.warning(self, "Stadt fehlt", "Bitte geben Sie eine Stadt ein.")
+                return
+
+        self.debug_log(f"Suche Schulen für Stadt: {city}")
+        try:
+            schools = get_schools(city, debug_mode)
+        except Exception as e:
+            QMessageBox.critical(self, "Fehler", f"Fehler beim Laden der Schulen: {str(e)}")
+            return
+
+        self.schools_combo.clear()
+        if not schools:
+            self.debug_log("Keine Schulen gefunden.")
+            return
+
+        # Merken für später
+        self.found_schools = schools
+
+        # Schulen in ComboBox eintragen: "#Index – displayName (address)"
+        for idx, school in enumerate(schools):
+            display = f"#{idx} – {school['displayName']} ({school['address']})"
+            self.schools_combo.addItem(display, idx)  # data=idx
+        
+        if self.use_defaults:
+                schulnummer = int(self.config_data.get("Schulnummer"))
+                #print(schulnummer)
+                self.schools_combo.setCurrentIndex(schulnummer) # set index of school combo to default
+
+        self.debug_log(f"{len(schools)} Schulen gefunden und ComboBox gefüllt.")
+
+    def debug_log(self, msg):
+        self.log_text.append(msg)
+
+    def refresh(self):
+        self.config_data = read_config_env()
+
+    def run_fetch(self):
+
+        """Hauptfunktion zum Stundenplan-Abruf; verwendet die derzeit gewählten Einstellungen."""
+        self.debug_log("Starte Stundenplan-Abruf...")
+        debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
+
+        # 1) Standardwerte & Felder
+        name = self.config_data.get("Name", "None")
+        email = self.config_data.get("Email", "None")
+        betrieb = self.config_data.get("Betrieb", "None")
+        std_schulnummer = self.config_data.get("Schulnummer", "None")
+        std_klasse = self.config_data.get("Klasse", "None")
+
+        if name in ["None", ""] or email in ["None", ""] or betrieb in ["None", ""]:
+            QMessageBox.warning(self, "Fehlende Angaben", "Bitte Name, Email und Betrieb in Settings eintragen.")
+            return
+
+        week_count = self.weeks_spin.value()
+
+        # 2) Schule aus ComboBox
+        # Falls user Defaults nutzt, aber man trotzdem die ComboBox füllen will
+        # => Dann sollte user "Schulen laden" gedrückt haben. Hier prüfen wir:
+        if not hasattr(self, 'found_schools') or len(self.found_schools) == 0:
+            QMessageBox.information(self, "Keine Schule ausgewählt", "Bitte zuerst auf 'Schulen laden' klicken und eine Schule auswählen.")
+            return
+
+        selected_index = self.schools_combo.currentIndex()
+        if selected_index < 0:
+            QMessageBox.warning(self, "Keine Schule", "Bitte wählen Sie eine Schule aus der Liste.")
+            return
+
+        # mapping index -> actual school
+        school = self.found_schools[selected_index]
+        self.debug_log(f"Ausgewählte Schule: {school['displayName']}")
+
+        # 3) Klasse
+        if self.use_defaults:
+            if not std_klasse == self.class_edit.text().strip():
+                class_short = self.class_edit.text().strip()
             else:
-                subject = lesson_code
-                teacher = 'Unbekannt'  # Falls keine Lehrerinformation vorhanden ist
-            
-            cellState = period.get("cellState", '')
-            is_exam = False
-            is_additional = False
-            if debug_mode:
-                print(f"{subject} : {cellState}")
-            if cellState == "EXAM":
-                is_exam = True
-            elif cellState == "ADDITIONAL":
-                is_additional = True
-            else:
-                is_additional = False
-                is_exam = False
-                #print("Set is_additional to: ", is_additional)
+                class_short = std_klasse
+            if not class_short or class_short == "None":
+                QMessageBox.warning(self, "Klasse fehlt", "Klasse ist nicht gesetzt oder leer.")
+                return
+        else:
+            class_short = self.class_edit.text().strip()
+            if not class_short:
+                QMessageBox.warning(self, "Klasse fehlt", "Bitte einen Klassennamen (Kurzname) eingeben.")
+                return
 
-            # Bestimme die Stunde und Minute, um die korrekte Startzeit zu berechnen
-            start_time = period.get('startTime', 0)  
-            end_time = period.get('endTime', 0)
+        # 4) Cookies holen etc.
+        jsession_id, trace_id = get_cookies(school["server"], school["loginSchool"], debug_mode)
+        if not jsession_id:
+            self.debug_log("Fehler: Konnte keine Session-Cookies erhalten.")
+            return
 
-            # Umwandlung der startTime und endTime in Stunden und Minuten
-            start_hour = start_time // 100
-            start_minute = start_time % 100
-            end_hour = end_time // 100
-            end_minute = end_time % 100
-            #if is_additional is None or is_additional == "":
-                #print(is_additional)
-            # Füge den Schultag, das Datum, das Fach, den Lehrer und die Uhrzeiten zur Liste hinzu
-            school_days_subjects_teachers.append({
-                "lesson_date": lesson_date,
-                "school_day": school_day,
-                "subject": subject,
-                "teacher": teacher,
-                "is_exam": is_exam,
-                "is_additional": is_additional,
-                "start_time": datetime.time(start_hour, start_minute),
-                "end_time": datetime.time(end_hour, end_minute),
-            })
+        headers = get_headers(
+            tenant_id=school["tenantId"],
+            schoolname=school["loginName"],
+            server=school["server"],
+            login_name=school["loginSchool"],
+            jsession_id=jsession_id,
+            trace_id=trace_id
+        )
 
-    return school_days_subjects_teachers
+        # 5) Klassen-Liste
+        class_list, error_msg = get_classes(school["server"], school, jsession_id, trace_id, debug_mode)
+        if error_msg:
+            self.debug_log(f"Fehler bei get_classes: {error_msg}")
+            return
+
+        matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
+        if not matching_class:
+            self.debug_log(f"Klasse '{class_short}' nicht gefunden.")
+            return
+
+        class_id = matching_class["id"]
+        self.debug_log(f"Klasse {matching_class['displayName']} (ID={class_id}) wird geladen...")
+
+        # 6) Wochen-Daten
+        all_days = fetch_data_for_next_weeks(school, class_id, week_count, headers, debug_mode, debug_log_func=self.debug_log)
+        if not all_days:
+            self.debug_log("Keine Stunden gefunden.")
+            return
+
+        # 7) ICS generieren
+
+        global create_oof
+
+        if self.create_oof_box.isChecked():
+            create_oof = True
+        else:
+            create_oof = False
+        ics_path = create_ics_file_for_week(all_days, school["loginName"], self.config_data.get("Dateipfad"), school, name, betrieb, email, debug_log_func=self.debug_log)
+        if ics_path:
+            #self.debug_log(f"ICS-Datei erstellt: {ics_path}")
+            ret = QMessageBox.question(self, "Öffnen?", "Soll die .ics-Datei in Ihrem Kalender geöffnet werden?", QMessageBox.Yes | QMessageBox.No)
+            if ret == QMessageBox.Yes:
+                open_ics_with_default_app(ics_path)
+        if debug_mode:
+            ret = QMessageBox.question(self, "Builden?","Soll diese Version gebuildet werden?", QMessageBox.Yes | QMessageBox.No)
+            if ret == QMessageBox.Yes:
+                self.debug_log("Version wird gebaut...")
+                if os.path.exists("./dist/WebLook.exe"):
+                    os.remove("./dist/WebLook.exe")
+
+                script_directory = os.path.dirname(os.path.abspath(sys.argv[0])) 
+                icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
+                #print(icon_path)
+                os.system(f'pyinstaller main.py --onefile --name WebLook --icon "{icon_path}"')
+                # check if build was successful
+                if not os.path.exists("./dist/WebLook.exe"):
+                    print("Build failed.")
+                else:
+                    #Copy Assets to build directory
+                    assets_path = script_directory + "/assets"
+                    build_assets_path = script_directory + "/dist/assets"
+                    if not os.path.exists(build_assets_path):
+                        os.makedirs(build_assets_path)
+                        os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s')
+                    print("Build successful.")
+                    ret = QMessageBox.question(self, "Run the build?", "Built successfully! Should the build be run?", QMessageBox.Yes | QMessageBox.No)
+                    if ret == QMessageBox.Yes:
+                        os.system(f'cd dist && WebLook.exe')
+                        #Exit the non builded version
+                        sys.exit(0)
+        
+
 
 def main():
-    
-    while True:
-        display_main_menu()
-        choice = input("Please select an option: ")
-        
-        if choice == '1':
-            fetch_timetable()
-        
-        elif choice == '2':
-            settings_menu()
-        
-        elif choice == '3':
-            print("Exiting WebLook. See you soon!")
-            break
-        
-        else:
-            print("Invalid choice, please try again.")
-            input("\nPress Enter to return to the menu...")
-        
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
     main()
