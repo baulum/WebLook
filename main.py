@@ -318,26 +318,22 @@ def get_school_days_subjects_teachers(json_data, debug_mode=False):
 
 def get_next_workday(date_obj, holiday_dates, school_days):
     """
-    Finds the next workday that is not a weekend or holiday and not a school day.
-    
-    :param date_obj: The starting date
-    :param holiday_dates: A set of holidays
-    :param school_days: A set of known school days
-    :return: The next workday date
+    Finds the next workday that is not a weekend, holiday, or school day.
+
+    :param date_obj: The starting date (datetime.date)
+    :param holiday_dates: A set of holidays (set of datetime.date)
+    :param school_days: A set of known school days (set of datetime.date)
+    :return: The next workday date (datetime.date)
     """
     next_day = date_obj + datetime.timedelta(days=1)
     while (
-        next_day.weekday() > 4  # Skip weekends
+        next_day.weekday() > 4  # Skip weekends (5=Sat, 6=Sun)
         or next_day in holiday_dates  # Skip holidays
         or next_day in school_days  # Skip school days
     ):
         next_day += datetime.timedelta(days=1)
     return next_day
 
-
-
-# We'll define a global to handle the user "Out Of Office" checkbox
-create_oof = False
 def create_ics_file_for_week(
     school_days_subjects_teachers,
     schoolname,
@@ -347,13 +343,14 @@ def create_ics_file_for_week(
     betrieb="",
     email="",
     debug_log_func=print,
+    create_oof=False,
+    oof_custom_text="",  # Editable custom text for OOF messages
     country="DE",  # Default to Germany for holidays
-    create_oof=True,
-    prov=None,     # Optional: specify a province (e.g., "BY" for Bavaria)
-    state=None     # Optional: specify a state
+    prov=None,     # Optional province code (e.g., "BY" for Bavaria)
+    state=None     # Optional state code
 ):
     """
-    Create an ICS (iCalendar) file with the given school schedule data, including holidays.
+    Create an ICS (iCalendar) file with the given school schedule data, including holidays and OOF events.
 
     :param school_days_subjects_teachers: List of dicts with lesson info
     :param schoolname: Name of the school
@@ -364,11 +361,13 @@ def create_ics_file_for_week(
     :param email: Email address (used in OOF messages)
     :param debug_log_func: Function for logging debug messages
     :param create_oof: Whether or not to create "Out of Office" blocks
+    :param oof_custom_text: Custom text to prepend to the OOF description
     :param country: Country code for holidays library (default is Germany: 'DE')
     :param prov: Optional province code (e.g., 'BY' for Bavaria)
     :param state: Optional state code for holidays library
     """
-
+    
+    # Ensure the output directory exists
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -378,50 +377,54 @@ def create_ics_file_for_week(
         key=lambda x: (x["lesson_date"], x["start_time"])
     )
     
+    # Determine the school name
     schoolname = school_data.get('loginSchool', "Schule") if school_data else "Schule"
     filename = f"{schoolname.lower()}_stundenplan_woche.ics"
     file_path = os.path.join(output_dir, filename)
     debug_log_func(f"Anzahl gefundener Stunden: {len(sorted_lessons)}")
 
+    # If no lessons are found, exit early
     if len(sorted_lessons) == 0:
         debug_log_func("Keine Stunden gefunden.")
         return None
 
+    # Initialize ICS content
     ics_content = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
         "CALSCALE:GREGORIAN"
     ]
 
-    # For ICS creation date, pick the earliest lesson’s date-time
+    # Determine ICS creation date based on the first lesson
     first_lesson_dt = datetime.datetime.combine(
         sorted_lessons[0]["lesson_date"],
         sorted_lessons[0]["start_time"]
     )
     creation_date = first_lesson_dt.strftime("%Y%m%dT%H%M%S")
 
-    # Gather all school days
+    # Gather all school days from lessons
     school_days = {lesson["lesson_date"] for lesson in sorted_lessons}
 
     # Generate holidays using the holidays library
     min_date = sorted_lessons[0]["lesson_date"]
     max_date = sorted_lessons[-1]["lesson_date"]
     year_range = {min_date.year, max_date.year}
-    holiday_dates = {}
+    holiday_dates = set()
     for year in year_range:
         country_holidays = holidays.country_holidays(country, prov=prov, state=state, years=year, language="DE")
-        for date, name in country_holidays.items():
-            if min_date <= date <= max_date:
-                holiday_dates[date] = name
+        holiday_dates.update(country_holidays.keys())
 
-    # Identify missing dates (holidays with no lesson data)
-    all_dates = {min_date + datetime.timedelta(days=i) for i in range((max_date - min_date).days + 1)}
-    missing_dates = all_dates - school_days
+    # Identify all dates within the range
+    total_days = (max_date - min_date).days + 1
+    all_dates = {min_date + datetime.timedelta(days=i) for i in range(total_days)}
 
-    # Add VEVENT for holidays
-    for hday in missing_dates:
+    # Identify non-school days: weekends and holidays
+    non_school_days = {day for day in all_dates if day.weekday() > 4 or day in holiday_dates}
+
+    # Add VEVENT for each holiday
+    for hday in sorted(non_school_days):
         if hday in holiday_dates:
-            holiday_name = holiday_dates[hday]
+            holiday_name = country_holidays.get(hday, "Feiertag")
             dtstart_holiday = hday.strftime("%Y%m%d")
             dtend_holiday = (hday + datetime.timedelta(days=1)).strftime("%Y%m%d")
             ics_content.extend([
@@ -438,16 +441,19 @@ def create_ics_file_for_week(
 
     # Add VEVENT for each lesson
     for lesson in sorted_lessons:
-        event_start = datetime.datetime.combine(
+        event_start_dt = datetime.datetime.combine(
             lesson["lesson_date"],
             lesson["start_time"]
-        ).strftime("%Y%m%dT%H%M%S")
-        event_end = datetime.datetime.combine(
+        )
+        event_end_dt = datetime.datetime.combine(
             lesson["lesson_date"],
             lesson["end_time"]
-        ).strftime("%Y%m%dT%H%M%S")
+        )
+        event_start = event_start_dt.strftime("%Y%m%dT%H%M%S")
+        event_end = event_end_dt.strftime("%Y%m%dT%H%M%S")
         event_description = f"{lesson['subject']} - {lesson['teacher']}"
 
+        # Determine summary and description based on lesson type
         if lesson.get("is_exam"):
             summary_line = f"Prüfung {lesson['subject']}"
             description_line = f"{event_description} Prüfung!"
@@ -458,6 +464,7 @@ def create_ics_file_for_week(
             summary_line = lesson["subject"]
             description_line = event_description
 
+        # Append the VEVENT
         ics_content.extend([
             "BEGIN:VEVENT",
             f"DTSTART:{event_start}",
@@ -469,28 +476,35 @@ def create_ics_file_for_week(
             "END:VEVENT"
         ])
 
-    # Create OOF blocks for consecutive non-school days
+    # Create OOF blocks for consecutive school days
     if create_oof:
-        unique_days = sorted(all_dates - school_days)
+        # Sort school days to process them in order
+        sorted_school_days = sorted(school_days)
         blocks = []
-        current_block = [unique_days[0]]
-        for day in unique_days[1:]:
-            if (day - current_block[-1]).days > 1:
-                blocks.append(current_block)
+        current_block = []
+
+        for day in sorted_school_days:
+            if not current_block:
                 current_block = [day]
             else:
-                current_block.append(day)
-        blocks.append(current_block)
+                if (day - current_block[-1]).days == 1:
+                    current_block.append(day)
+                else:
+                    blocks.append(current_block)
+                    current_block = [day]
+        if current_block:
+            blocks.append(current_block)
 
+        # Retrieve display information from school_data
         display_name = school_data.get("displayName", "Schule") if school_data else "Schule"
         address = school_data.get("address", "Unbekannte Adresse") if school_data else "Unbekannte Adresse"
 
         for block in blocks:
             block_earliest = min(block)
             block_latest = max(block)
-            start_date_ics = block_earliest.strftime("%Y%m%d")
-            end_date_ics = (block_latest + datetime.timedelta(days=1)).strftime("%Y%m%d")
-            next_workday_dt = get_next_workday(block_latest, holiday_dates=set(holiday_dates), school_days=school_days)
+
+            # Calculate the next workday after the last school day in the block
+            next_workday_dt = get_next_workday(block_latest, holiday_dates=holiday_dates, school_days=school_days)
             next_workday_str = next_workday_dt.strftime("%d.%m.%Y")
 
             oof_description = (
@@ -499,19 +513,23 @@ def create_ics_file_for_week(
                 "wieder erreichen.\\n\\n"
                 f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
             )
-            
+
+            # Define the OOF event's start and end dates (inclusive)
+            dtstart_oof = block_earliest.strftime("%Y%m%d")
+            dtend_oof = (block_latest + datetime.timedelta(days=1)).strftime("%Y%m%d")
+
+            # Append the OOF VEVENT
             ics_content.extend([
                 "BEGIN:VEVENT",
                 "CLASS:PUBLIC",
                 f"CREATED:{creation_date}",
                 f"DESCRIPTION:{oof_description}",
-                f"DTEND;VALUE=DATE:{end_date_ics}",
-                f"DTSTART;VALUE=DATE:{start_date_ics}",
-                f"LOCATION:{display_name} ({address})",
-                "PRIORITY:5",
-                "SEQUENCE:0",
-                "SUMMARY;LANGUAGE=de:Berufsschule",
+                f"DTEND;VALUE=DATE:{dtend_oof}",
+                f"DTSTART;VALUE=DATE:{dtstart_oof}",
+                f"LOCATION:",
+                f"SUMMARY;LANGUAGE=de:{display_name} ({address})",
                 "TRANSP:OPAQUE",
+                "STATUS:CONFIRMED",
                 "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
                 "X-MICROSOFT-CDO-IMPORTANCE:1",
                 "X-MICROSOFT-CDO-DISALLOW-COUNTER:FALSE",
@@ -520,13 +538,26 @@ def create_ics_file_for_week(
                 "END:VEVENT"
             ])
 
+            # Debug information
+            debug_log_func(
+                f"OOF-Block: {block_earliest} → {block_latest} | "
+                f"Nächster Arbeitstag: {next_workday_str}"
+            )
+            if debug_mode:
+                debug_log_func(
+                    f"\nOOF-Notiz: {oof_description}"
+                )
+
+    # Close the ICS calendar
     ics_content.append("END:VCALENDAR")
 
+    # Write the ICS content to the file
     with open(file_path, 'w', encoding='utf8') as ics_file:
         ics_file.write("\n".join(ics_content))
 
     debug_log_func(f"ICS-Datei erstellt: {file_path}")
     return file_path
+
 
 
 def open_ics_with_default_app(ics_file_path):
@@ -656,7 +687,8 @@ def fetch_data_for_next_weeks(
             f"https://{server}/WebUntis/api/public/timetable/weekly/data"
             f"?elementType=1&elementId={class_id}&date={week_start}&formatId=2&filter.departmentId=-1"
         )
-        debug_log_func(f"Hole Daten für Woche: {week_start}")
+        if debug_mode:
+            debug_log_func(f"Hole Daten für Woche: {week_start}")
         timetable_data = fetch_timetable_data(api_url, headers)
         if timetable_data:
             results = get_school_days_subjects_teachers(timetable_data, debug_mode)
@@ -1131,6 +1163,7 @@ class FetchTimetablePage(QWidget):
 
     def run_fetch(self):
         self.debug_log("Starte Stundenplan-Abruf...")
+        global debug_mode
         debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
         if debug_mode:
             print("Der Debugging Modus ist eingeschaltet.")
