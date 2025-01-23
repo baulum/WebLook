@@ -6,3 +6,7 @@ file.txt
 json_output.txt
 user_manual.pdf
 WebLook.spec
+login_test.py
+init_url_get.txt
+login_test2.py
+config-template.ini
