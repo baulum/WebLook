@@ -1,4 +1,7 @@
-dist/
+dist/kalender/
+dist/config.env
+dist/WebLook.zip
+dist/user_manual.md
 build/
 kalender/
 config.env
