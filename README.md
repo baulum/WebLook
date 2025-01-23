@@ -129,13 +129,13 @@ In beiden Fällen ist Ihr Stundenplan nach der Bestätigung direkt in Ihrem Outl
 
 ## 6. Fehlersuche und Debugging
 
-- Aktivieren Sie **Debugging** in den Einstellungen, um ausführlichere Log-Informationen zu erhalten.  
-- Das Ausgabefeld auf der Seite „Stundenplan“ zeigt Ihnen ebenfalls relevante Meldungen (z. B. gefundene Stunden, Kalenderdatei erstellt usw.).  
 - Bei Problemen prüfen Sie bitte zuerst:
   1. **Internetverbindung** (für WebUntis-Zugriff nötig).  
   2. **Richtige Schreibweise** von Stadt/Adresse, Schulnummer und Klassenbezeichnung.  
   3. **Korrekter Pfad** zur ICS-Datei.  
   4. **Lese-/Schreibrechte** in dem gewählten Verzeichnis.
+- Aktivieren Sie **Debugging** in den Einstellungen, um ausführlichere Log-Informationen zu erhalten.  
+- Das Ausgabefeld auf der Seite „Stundenplan“ zeigt Ihnen ebenfalls relevante Meldungen (z. B. gefundene Stunden, Kalenderdatei erstellt usw.). 
 
 ---
 
