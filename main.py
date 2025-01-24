@@ -1398,6 +1398,7 @@ class FetchTimetablePage(QWidget):
                 icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
                 os.system(f'pyinstaller main.py --onefile --name WebLook --icon "{icon_path}"')
                 if not os.path.exists("./dist/WebLook.exe"):
+                    
                     print("Build failed.")
                 else:
                     assets_path = os.path.join(script_directory, "assets")
