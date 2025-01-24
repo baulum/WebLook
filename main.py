@@ -1776,6 +1776,37 @@ class FetchTimetablePage(QWidget):
                 if ret == QMessageBox.Yes:
                     open_ics_with_default_app(ics_path)
 
+            if debug_mode:
+                #self.debug_log(f'loginName={school["loginName"]}')
+                ret = QMessageBox.question(
+                    self,
+                    "Builden?",
+                    "Soll diese Version gebuildet werden?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if ret == QMessageBox.Yes:
+                    self.debug_log("Version wird gebaut...")
+                    if os.path.exists("./dist/WebLook.exe"):
+                        os.remove("./dist/WebLook.exe")
+
+                    script_directory = os.path.dirname(os.path.abspath(sys.argv[0]))
+                    icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
+                    
+                    # Execute PyInstaller to build the executable
+                    os.system(f'pyinstaller main.py --onefile --name WebLook --icon "{icon_path}"')
+                    
+                    if not os.path.exists("./dist/WebLook.exe"):
+                        print("Build failed.")
+                    else:
+                        # Copy assets to the build directory
+                        assets_path = os.path.join(script_directory, "assets")
+                        build_assets_path = os.path.join(script_directory, "dist", "assets")
+                        if not os.path.exists(build_assets_path):
+                            os.makedirs(build_assets_path)
+                        os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s')
+                        print("Build successful.")
+
+
         except Exception as e:
             self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
             QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten. Siehe Log für Details.")
