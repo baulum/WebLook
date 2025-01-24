@@ -48,7 +48,7 @@ Dort finden Sie folgende Felder:
    *Die Klassenbezeichnung, z. B. „10A“. (Vermeide „10 A“)*
 
 8. **Schulnummer**  
-   *Die Index-Nummer der Schule (erscheint, wenn man Schulen lädt) (z. B. „**#1** – Staatl. Berufsschule I …“).*
+   *Die Index-Nummer der Schule (erscheint, wenn man Schulen lädt) (z. B. „**#1** – Staatl. Berufsschule I …“ --> **1**). Hier*
 
 10. **Wochen**  
    *Anzahl der Wochen, für die der Stundenplan abgefragt werden soll (z. B. 4).*
