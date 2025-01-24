@@ -1,3 +1,6 @@
 requests
 termcolor
 pyinstaller
+PyQt5
+holidays
+warnings
