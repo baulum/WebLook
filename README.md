@@ -83,14 +83,14 @@ Wechseln Sie nun zum Reiter **„Stundenplan“**, um Ihren Plan aus WebUntis zu
    Ihre Klasse sollte bereits aus den Einstellungen übernommen sein (z. B. „IT10D“).  
    *Wenn Sie hier etwas anpassen, überschreibt es kurzzeitig die Voreinstellungen und benutzt das eingegeben Klassenkürzel.*
 
-5. **Anzahl Wochen (1–15)**  
+5. **Anzahl Wochen (1–25)**  
    Legen Sie fest, für wie viele Wochen der Stundenplan abgerufen werden soll (Standard: 4).
 
 6. **Out Of Office Notiz erstellen?**  
    Aktivieren Sie dieses Kontrollkästchen, wenn das Programm automatisch eine Abwesenheitsnotiz in Outlook anlegen soll, die Ihrer E-Mail-Adresse zugeordnet ist.  
 
    - Im Textfeld unten sehen Sie, für welchen Zeitraum die Out-of-Office-Nachricht erstellt wird und wie sie inhaltlich aussieht.  
-   - Dieser Text lässt sich bei Bedarf in den Einstellungen (bzw. im Quellcode) anpassen. (Diese Option ist noch nicht verfügbar, befindet   sich allerdings bereits in der Entwickung.)
+   - Dieser Text lässt sich bei Bedarf in den Einstellungen (bzw. im Quellcode) anpassen. (Diese Option ist noch nicht verfügbar, befindet sich allerdings bereits in der Entwickung.)
 
 7. **Stundenplan abrufen!**  
    - Klicken Sie auf diese Schaltfläche, um den Plan bei WebUntis abzuholen.  
