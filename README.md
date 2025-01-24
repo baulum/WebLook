@@ -70,36 +70,46 @@ Wenn Sie alle Angaben gemacht haben, **klicken Sie auf „Speichern“**, damit 
 Wechseln Sie nun zum Reiter **„Stundenplan“**, um Ihren Plan aus WebUntis zu importieren und eine entsprechende Kalenderdatei zu erstellen.
 
 1. **Nutzung der Voreinstellungen**  
-   Oben sehen Sie den Schalter **„Nutze DEFAULTS (klicken zum Umschalten)“**. Sobald Sie diesen einschalten, werden die Daten aus Ihren Einstellungen übernommen. Sie müssen diese Option aber nicht benutzen, und können ggf. diesen Schritt überspringen.
+   Oben sehen Sie den Schalter **„Nutze DEFAULTS (klicken zum Umschalten)“**.  
+   - **Eingeschaltet**: Sobald Sie diese Option aktivieren, werden alle notwendigen Daten (wie Stadt, Schule, Klasse etc.) automatisch aus den Einstellungen übernommen, und der Stundenplan wird **sofort geladen**, ohne dass weitere Eingaben erforderlich sind.  
+   - **Ausgeschaltet**: Wenn Sie die DEFAULTS nicht nutzen möchten, können Sie alle Felder manuell ausfüllen (z. B. Stadt, Schule, Klasse etc.).  
 
 2. **Stadt/Adresse**  
-   Geben Sie ggf. die gewünschte Stadt ein oder stellen Sie sicher, dass die aus den Einstellungen übernommene Adresse korrekt ist.
+   Wenn Sie die DEFAULTS deaktiviert haben, geben Sie hier die gewünschte Stadt ein. Stellen Sie sicher, dass die Adresse korrekt ist, da diese für die Verbindung mit WebUntis benötigt wird.
 
 3. **Schulen laden**  
-   Wählen Sie hier aus den verfügbaren Schulen, falls mehrere angezeigt werden (z. B. „#1 – Staatl. Berufsschule I …“).
-   Hier wäre 1 die Schulnummer, die auch in den Einstellungen sichbar ist.
+   Klicken Sie auf **„Schulen laden“**, um die verfügbaren Schulen zu sehen. Wählen Sie dann die richtige Schule aus der Liste aus (z. B. „#1 – Staatl. Berufsschule I …“).  
+   - Die Zahl vor der Schule (z. B. „#1“) entspricht der Schulnummer, die auch in den Einstellungen sichtbar ist.
 
 4. **Klasse (Kurzname)**  
-   Ihre Klasse sollte bereits aus den Einstellungen übernommen sein (z. B. „IT10D“).  
-   *Wenn Sie hier etwas anpassen, überschreibt es kurzzeitig die Voreinstellungen und benutzt das eingegeben Klassenkürzel.*
+   Wenn die DEFAULTS aktiviert sind, wird Ihre Klasse automatisch übernommen (z. B. „IT10D“).  
+   - Deaktivieren Sie die DEFAULTS, um eine Klasse manuell einzugeben.  
+   - Wenn Sie hier etwas ändern, wird der eingegebene Klassenname vorübergehend genutzt, ohne die gespeicherten Einstellungen zu überschreiben.
 
 5. **Anzahl Wochen (1–25)**  
-   Legen Sie fest, für wie viele Wochen der Stundenplan abgerufen werden soll (Standard: 4).
+   Wählen Sie die Anzahl der Wochen aus, für die der Stundenplan abgerufen werden soll (Standard: 4).
 
 6. **Out Of Office Notiz erstellen?**  
-   Aktivieren Sie dieses Kontrollkästchen, wenn das Programm automatisch eine Abwesenheitsnotiz in Outlook anlegen soll, die Ihrer E-Mail-Adresse zugeordnet ist.  
+   Aktivieren Sie dieses Kontrollkästchen, wenn das Programm automatisch eine Abwesenheitsnotiz in Outlook erstellen soll, die Ihrer E-Mail-Adresse zugeordnet ist.  
 
    - Im Textfeld unten sehen Sie, für welchen Zeitraum die Out-of-Office-Nachricht erstellt wird und wie sie inhaltlich aussieht.  
-   - Dieser Text lässt sich bei Bedarf in den Einstellungen (bzw. im Quellcode) anpassen. (Diese Option ist noch nicht verfügbar, befindet sich allerdings bereits in der Entwickung.)
+   - Dieser Text lässt sich bei Bedarf in den Einstellungen (bzw. im Quellcode) anpassen.
 
 7. **Stundenplan abrufen!**  
    - Klicken Sie auf diese Schaltfläche, um den Plan bei WebUntis abzuholen.  
+   - Wenn die DEFAULTS aktiviert sind, wird dieser Schritt automatisch durchgeführt, und der Stundenplan wird geladen.  
    - Das Programm zeigt anschließend in einem Textausgabefeld an, wie viele Stunden gefunden wurden und für welchen Zeitraum.  
    - Im letzten Schritt wird eine **ICS-Datei** erstellt und im *Dateipfad* gespeichert, den Sie unter „Einstellungen“ angegeben haben.
 
 8. **Erfolgreicher Abruf**  
    - Sobald das Programm meldet, dass die Datei erstellt wurde, können Sie diese ICS-Datei im Explorer auffinden.  
-   - Sie können die Datei in Outlook (oder einem anderen Kalender-Programm) importieren.
+   - Sie können die Datei in Outlook (oder einem anderen Kalender-Programm) importieren. 
+
+---
+
+### Zusätzliche Hinweise
+- **DEFAULTS aktivieren**: Perfekt für Nutzer, die ihre Daten bereits in den Einstellungen gespeichert haben und keine zusätzlichen Anpassungen vornehmen möchten.  
+- **DEFAULTS deaktivieren**: Ideal für Nutzer, die individuelle Eingaben machen möchten oder müssen (z. B. für abweichende Städte oder Klassen).
 
 ---
 
