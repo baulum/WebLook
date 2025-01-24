@@ -167,11 +167,10 @@ In zukünftigen Versionen von **WebLook** werden folgende Erweiterungen integrie
 - **Reduzierte Stundenplan-Daten:** Statt des gesamten Stundenplans werden lediglich die Zeiträume eingetragen, in denen der Azubi nicht im Betrieb anwesend ist.  
 - **Termin-Details:** Im automatisch erstellten Termin wird zusätzlich der **nächste reguläre Arbeitstag** des Azubis vermerkt, damit der Ausbilder direkt sieht, ab wann der Azubi wieder im Betrieb verfügbar ist.
 
-### 9.2 Login-Funktion
-- **Erweiterte Authentifizierung:** Da nicht alle Schulen einen öffentlichen WebUntis-Stundenplan anbieten, wird es eine Login-Funktion geben.  
-- **Zugriff auf geschützte Stundenpläne:** Mit den entsprechenden Login-Daten können Nutzer auf die Stundenpläne von Schulen zugreifen, die eine Anmeldung erfordern.  
-- **Sichere Datenhaltung:** Die Login-Informationen werden verschlüsselt gespeichert und nur für den Abruf der Stundenplandaten verwendet.
+### 9.2 Bearbeitbare OOF Notiz
+- **Benutzerdefinierte Abwesenheitsnotiz:** User können die Abwesenheitsnotiz selbstständig ändern.  
+- **Schwierigkeiten:** In der OOF Notiz befinden Platzhalter für den nächsten Arbeitstag und Kontakinformationen. User berücksichtigen diese Platzhalter möglicherweise nicht.  
 
-Diese Funktionen befinden sich derzeit in Entwicklung und werden Ihnen in einer der kommenden Versionen von **WebLook** zur Verfügung gestellt. Bitte halten Sie das Programm aktuell oder schauen Sie regelmäßig nach Updates, um vom **Ausbilder-Modus** und der **Login-Funktion** profitieren zu können.
+Diese Funktionen befinden sich derzeit in Entwicklung und werden Ihnen in einer der kommenden Versionen von **WebLook** zur Verfügung gestellt. Bitte halten Sie das Programm aktuell oder schauen Sie regelmäßig nach Updates, um vom **Ausbilder-Modus** und der **Bearbeitbaren OOF Notiz** profitieren zu können.
 
 **Wir wünschen viel Erfolg bei der Nutzung von WebLook!**  
