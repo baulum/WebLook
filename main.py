@@ -248,9 +248,12 @@ def fetch_timetable_data(url, headers):
         print(f"Fehler beim Parsen von JSON: {e}")
         return None
 
+
+import datetime
+
 def get_school_days_subjects_teachers(json_data, debug_mode=False):
     """
-    As in your existing code, parse the returned JSON for timetable data.
+    Parses the returned JSON for timetable data and supports both 'elementPeriods' and 'elements'.
     """
     date_to_day = {
         0: 'Montag',
@@ -261,38 +264,42 @@ def get_school_days_subjects_teachers(json_data, debug_mode=False):
         5: 'Samstag',
         6: 'Sonntag',
     }
-    
-    element_periods = json_data['data']['result']['data'].get('elementPeriods')
-    if element_periods is None:
-        element_periods = json_data['data']['result']['data'].get('elements', {})
+
+    try:
+        result_data = json_data.get("data", {}).get("result", {}).get("data", {})
+        element_periods = result_data.get('elementPeriods', {})
+        elements = result_data.get('elements', [])
+    except KeyError:
+        if debug_mode:
+            error_message = json_data.get("data", {}).get("error", {}).get("data", {}).get("messageKey", "Unknown error")
+            print(f"Fehler: {error_message}")
+        return []
+
+    # Create a lookup for element IDs to their names (like teachers or subjects)
+    element_lookup = {elem['id']: elem['name'] for elem in elements}
 
     school_days_subjects_teachers = []
 
+    # Process periods
     for _, periods in element_periods.items():
         for period in periods:
             date = period['date']
-            date_str = str(date)
-            year = int(date_str[:4])
-            month = int(date_str[4:6])
-            day = int(date_str[6:])
+            year, month, day = int(str(date)[:4]), int(str(date)[4:6]), int(str(date)[6:])
             lesson_date = datetime.date(year, month, day)
             day_of_week = lesson_date.weekday()
             school_day = date_to_day[day_of_week]
 
-            lesson_code = period.get('studentGroup', '')
-            if '_' in lesson_code:
-                parts = lesson_code.split('_', 1)
-                subject = parts[0]
-                teacher_part = parts[1] if len(parts) > 1 else 'Unbekannt'
-                teacher_parts = teacher_part.split("_")
-                teacher = teacher_parts[-1] if len(teacher_parts) > 1 else teacher_part
-            else:
-                subject = lesson_code
-                teacher = 'Unbekannt'
+            # Extract lesson code, teacher, and subject
+            lesson_code = period.get('lessonCode', '')
+            teacher_ids = [elem['id'] for elem in period['elements'] if elem['type'] == 5]
+            subject_ids = [elem['id'] for elem in period['elements'] if elem['type'] == 3]
 
-            cellState = period.get("cellState", '')
-            is_exam = (cellState == "EXAM")
-            is_additional = (cellState == "ADDITIONAL")
+            teacher_names = [element_lookup[tid] for tid in teacher_ids if tid in element_lookup]
+            subject_names = [element_lookup[sid] for sid in subject_ids if sid in element_lookup]
+
+            cell_state = period.get("cellState", '')
+            is_exam = (cell_state == "EXAM")
+            is_additional = (cell_state == "ADDITIONAL")
 
             start_time = period.get('startTime', 0)
             end_time = period.get('endTime', 0)
@@ -302,19 +309,99 @@ def get_school_days_subjects_teachers(json_data, debug_mode=False):
             end_minute = end_time % 100
 
             if debug_mode:
-                print(f"Processed: {subject}, cellState={cellState}")
+                print(f"Processed: Subjects={subject_names}, Teachers={teacher_names}, cellState={cell_state}")
 
             school_days_subjects_teachers.append({
                 "lesson_date": lesson_date,
                 "school_day": school_day,
-                "subject": subject,
-                "teacher": teacher,
+                "subjects": subject_names,
+                "teachers": teacher_names,
                 "is_exam": is_exam,
                 "is_additional": is_additional,
                 "start_time": datetime.time(start_hour, start_minute),
                 "end_time": datetime.time(end_hour, end_minute),
             })
     return school_days_subjects_teachers
+
+
+
+
+
+
+# def get_school_days_subjects_teachers(json_data, debug_mode=False):
+#     """
+#     As in your existing code, parse the returned JSON for timetable data.
+#     """
+#     date_to_day = {
+#         0: 'Montag',
+#         1: 'Dienstag',
+#         2: 'Mittwoch',
+#         3: 'Donnerstag',
+#         4: 'Freitag',
+#         5: 'Samstag',
+#         6: 'Sonntag',
+#     }
+#     try:
+#         if json_data["data"]["result"]:
+#             element_periods = json_data['data']['result']['data'].get('elementPeriods')
+#             if element_periods is None:
+#                 element_periods = json_data['data']['result']['data'].get('elements', {})
+#     except KeyError:
+#         if debug_mode:
+#             print("Fehler:" + json_data["data"]["error"]["data"].get("messageKey"))
+#         return []
+        
+
+#     school_days_subjects_teachers = []
+
+#     for _, periods in element_periods.items():
+#         for period in periods:
+#             #print(period)
+#             date = period['date']
+#             date_str = str(date)
+#             year = int(date_str[:4])
+#             month = int(date_str[4:6])
+#             day = int(date_str[6:])
+#             lesson_date = datetime.date(year, month, day)
+#             day_of_week = lesson_date.weekday()
+#             school_day = date_to_day[day_of_week]
+
+#             lesson_code = period.get('studentGroup', '')
+#             if '_' in lesson_code:
+#                 parts = lesson_code.split('_', 1)
+#                 subject = parts[0]
+#                 teacher_part = parts[1] if len(parts) > 1 else 'Unbekannt'
+#                 teacher_parts = teacher_part.split("_")
+#                 teacher = teacher_parts[-1] if len(teacher_parts) > 1 else teacher_part
+#             else:
+#                 subject = lesson_code
+#                 teacher = 'Unbekannt'
+
+#             cellState = period.get("cellState", '')
+#             is_exam = (cellState == "EXAM")
+#             is_additional = (cellState == "ADDITIONAL")
+
+#             start_time = period.get('startTime', 0)
+#             end_time = period.get('endTime', 0)
+#             start_hour = start_time // 100
+#             start_minute = start_time % 100
+#             end_hour = end_time // 100
+#             end_minute = end_time % 100
+
+#             if debug_mode:
+#                 print(f"Processed: {subject}, cellState={cellState}")
+
+#             school_days_subjects_teachers.append({
+#                 "lesson_date": lesson_date,
+#                 "school_day": school_day,
+#                 "subject": subject,
+#                 "teacher": teacher,
+#                 "is_exam": is_exam,
+#                 "is_additional": is_additional,
+#                 "start_time": datetime.time(start_hour, start_minute),
+#                 "end_time": datetime.time(end_hour, end_minute),
+#             })
+#     return school_days_subjects_teachers
 
 def get_next_workday(date_obj, holiday_dates, school_days):
     """
@@ -351,20 +438,6 @@ def create_ics_file_for_week(
 ):
     """
     Create an ICS (iCalendar) file with the given school schedule data, including holidays and OOF events.
-
-    :param school_days_subjects_teachers: List of dicts with lesson info
-    :param schoolname: Name of the school
-    :param output_dir: Directory to store the .ics file
-    :param school_data: Additional data about the school (dict)
-    :param name: User's name (used in OOF messages)
-    :param betrieb: Company name (used in OOF messages)
-    :param email: Email address (used in OOF messages)
-    :param debug_log_func: Function for logging debug messages
-    :param create_oof: Whether or not to create "Out of Office" blocks
-    :param oof_custom_text: Custom text to prepend to the OOF description
-    :param country: Country code for holidays library (default is Germany: 'DE')
-    :param prov: Optional province code (e.g., 'BY' for Bavaria)
-    :param state: Optional state code for holidays library
     """
     
     # Ensure the output directory exists
@@ -379,8 +452,7 @@ def create_ics_file_for_week(
     
     # Determine the school name
     schoolname = school_data.get('loginSchool', "Schule") if school_data else "Schule"
-    filename = f"{schoolname.lower()}_stundenplan_woche.ics"
-    file_path = os.path.join(output_dir, filename)
+    
     debug_log_func(f"Anzahl gefundener Stunden: {len(sorted_lessons)}")
 
     # If no lessons are found, exit early
@@ -401,6 +473,8 @@ def create_ics_file_for_week(
         sorted_lessons[0]["start_time"]
     )
     creation_date = first_lesson_dt.strftime("%Y%m%dT%H%M%S")
+    
+
 
     # Gather all school days from lessons
     school_days = {lesson["lesson_date"] for lesson in sorted_lessons}
@@ -440,7 +514,48 @@ def create_ics_file_for_week(
             debug_log_func(f"Feiertag hinzugefügt: {hday} ({holiday_name})")
 
     # Add VEVENT for each lesson
+    # for lesson in sorted_lessons:
+    #     #if debug_mode:
+    #     print(lesson)
+    #     event_start_dt = datetime.datetime.combine(
+    #         lesson["lesson_date"],
+    #         lesson["start_time"]
+    #     )
+    #     event_end_dt = datetime.datetime.combine(
+    #         lesson["lesson_date"],
+    #         lesson["end_time"]
+    #     )
+    #     event_start = event_start_dt.strftime("%Y%m%dT%H%M%S")
+    #     event_end = event_end_dt.strftime("%Y%m%dT%H%M%S")
+    #     event_description = f"{lesson['subjects']} - {lesson['teachers']}"
+        
+
+    #     # Determine summary and description based on lesson type
+    #     if lesson.get("is_exam"):
+    #         summary_line = f"Prüfung {lesson['subject']}"
+    #         description_line = f"{event_description} Prüfung!"
+    #     elif lesson.get("is_additional"):
+    #         summary_line = f"Ersatzstunde {lesson['subject']}"
+    #         description_line = f"{event_description} Ersatz!"
+    #     else:
+    #         summary_line = lesson["subject"]
+    #         description_line = event_description
+
+    #     # Append the VEVENT
+    #     ics_content.extend([
+    #         "BEGIN:VEVENT",
+    #         f"DTSTART:{event_start}",
+    #         f"DTEND:{event_end}",
+    #         f"SUMMARY:{summary_line}",
+    #         f"DESCRIPTION:{description_line}",
+    #         f"LOCATION:{lesson['teacher']}",
+    #         "STATUS:CONFIRMED",
+    #         "END:VEVENT"
+    #     ])
+
     for lesson in sorted_lessons:
+        if debug_mode:
+            print(lesson)
         event_start_dt = datetime.datetime.combine(
             lesson["lesson_date"],
             lesson["start_time"]
@@ -451,17 +566,21 @@ def create_ics_file_for_week(
         )
         event_start = event_start_dt.strftime("%Y%m%dT%H%M%S")
         event_end = event_end_dt.strftime("%Y%m%dT%H%M%S")
-        event_description = f"{lesson['subject']} - {lesson['teacher']}"
+
+        # Combine multiple subjects and teachers into a single string
+        subjects = ", ".join(lesson.get("subjects", []))  # Fallback to an empty list if 'subjects' is missing
+        teachers = ", ".join(lesson.get("teachers", []))  # Fallback to an empty list if 'teachers' is missing
+        event_description = f"{subjects} - {teachers}"
 
         # Determine summary and description based on lesson type
         if lesson.get("is_exam"):
-            summary_line = f"Prüfung {lesson['subject']}"
+            summary_line = f"Prüfung {subjects}"
             description_line = f"{event_description} Prüfung!"
         elif lesson.get("is_additional"):
-            summary_line = f"Ersatzstunde {lesson['subject']}"
+            summary_line = f"Ersatzstunde {subjects}"
             description_line = f"{event_description} Ersatz!"
         else:
-            summary_line = lesson["subject"]
+            summary_line = subjects
             description_line = event_description
 
         # Append the VEVENT
@@ -471,10 +590,11 @@ def create_ics_file_for_week(
             f"DTEND:{event_end}",
             f"SUMMARY:{summary_line}",
             f"DESCRIPTION:{description_line}",
-            f"LOCATION:{lesson['teacher']}",
+            f"LOCATION:{teachers}",
             "STATUS:CONFIRMED",
             "END:VEVENT"
         ])
+
 
     # Create OOF blocks for consecutive school days
     if create_oof:
@@ -547,9 +667,19 @@ def create_ics_file_for_week(
                 debug_log_func(
                     f"\nOOF-Notiz: {oof_description}"
                 )
+    # Parse the string into a datetime object
+    #print(type(datetime))
+    # Parse the string into a datetime object
+    
+    creation_date_dt = datetime.datetime.strptime(str(creation_date), "%Y%m%dT%H%M%S")
 
+    # Format the datetime object into the desired format
+    formatted_creation_date = creation_date_dt.strftime("%Y-%m-%d")
     # Close the ICS calendar
     ics_content.append("END:VCALENDAR")
+
+    filename = f"{schoolname.lower()}_stundenplan_woche_{formatted_creation_date}_{block_latest}.ics"
+    file_path = os.path.join(output_dir, filename)
 
     # Write the ICS content to the file
     with open(file_path, 'w', encoding='utf8') as ics_file:
@@ -629,6 +759,7 @@ def get_classes(server, school, jsession_id, trace_id, debug_mode=False):
     Same as before: gets a list of classes from the /api/rest/view/v1/timetable/filter endpoint.
     We will call it after we've done the new form-based login, so we have a valid JSESSIONID + traceId.
     """
+    my_api_url = ""
     api_url = f"https://{server}/WebUntis/api/rest/view/v1/timetable/filter?resourceType=CLASS&timetableType=STANDARD"
     response = requests.get(
         api_url,
@@ -659,11 +790,12 @@ def get_classes(server, school, jsession_id, trace_id, debug_mode=False):
 
 def fetch_data_for_next_weeks(
     school,
-    class_id,
     week_count,
     headers,
+    class_id=None,
     debug_mode=False,
-    debug_log_func=print
+    debug_log_func=print,
+    student_id=None,
 ):
     """
     Original approach to fetch multiple weeks. We pass in 'headers' which include our cookies.
@@ -687,6 +819,17 @@ def fetch_data_for_next_weeks(
             f"https://{server}/WebUntis/api/public/timetable/weekly/data"
             f"?elementType=1&elementId={class_id}&date={week_start}&formatId=2&filter.departmentId=-1"
         )
+        if student_id:
+            api_url = f"https://{server}/WebUntis/api/public/timetable/weekly/data?elementType=5&elementId={student_id}&date={week_start}&formatId=10"
+            if debug_mode:
+                print(f"""
+
+                {api_url}
+
+
+                """)
+            
+            #api_url = f"https://{server}/WebUntis/api/public/timetable/weekly/data?elementType=5&elementId={student_id}&date={week_start}&formatId=10&filter.departmentId=-1"
         if debug_mode:
             debug_log_func(f"Hole Daten für Woche: {week_start}")
         timetable_data = fetch_timetable_data(api_url, headers)
@@ -1191,222 +1334,453 @@ class FetchTimetablePage(QWidget):
     def refresh(self):
         self.config_data = read_config_env()
 
-    def run_fetch(self):
-        self.refresh()
-        self.debug_log("Starte Stundenplan-Abruf...")
-        global debug_mode
-        debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
-        if debug_mode:
-            print("Der Debugging Modus ist eingeschaltet.")
+    # def run_fetch(self):
+    #     self.refresh()
+    #     self.debug_log("Starte Stundenplan-Abruf...")
+    #     global debug_mode
+    #     debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
+    #     if debug_mode:
+    #         print("Der Debugging Modus ist eingeschaltet.")
 
-        # 1) Basic config
-        name = self.config_data.get("Name", "None")
-        email = self.config_data.get("Email", "None")
-        username = self.config_data.get("Username", "")
-        password = self.config_data.get("Passwort", "")
-        betrieb = self.config_data.get("Betrieb", "None")
+    #     # 1) Basic config
+    #     name = self.config_data.get("Name", "None")
+    #     email = self.config_data.get("Email", "None")
+    #     username = self.config_data.get("Username", "")
+    #     password = self.config_data.get("Passwort", "")
+    #     betrieb = self.config_data.get("Betrieb", "None")
 
-        if name in ["None", ""] or email in ["None", ""] or betrieb in ["None", ""]:
-            QMessageBox.warning(self, "Fehlende Angaben", "Bitte Name, Email und Betrieb in Settings eintragen.")
-            return
+    #     if name in ["None", ""] or email in ["None", ""] or betrieb in ["None", ""]:
+    #         QMessageBox.warning(self, "Fehlende Angaben", "Bitte Name, Email und Betrieb in Settings eintragen.")
+    #         return
 
-        week_count = self.weeks_spin.value()
+    #     week_count = self.weeks_spin.value()
 
-        # 2) Check schools
-        if not hasattr(self, 'found_schools') or len(self.found_schools) == 0:
-            QMessageBox.information(self, "Keine Schule ausgewählt", "Bitte zuerst auf 'Schulen laden' klicken und eine Schule auswählen.")
-            return
-        selected_index = self.schools_combo.currentIndex()
-        if selected_index < 0:
-            QMessageBox.warning(self, "Keine Schule", "Bitte wählen Sie eine Schule aus der Liste.")
-            return
+    #     # 2) Check schools
+    #     if not hasattr(self, 'found_schools') or len(self.found_schools) == 0:
+    #         QMessageBox.information(self, "Keine Schule ausgewählt", "Bitte zuerst auf 'Schulen laden' klicken und eine Schule auswählen.")
+    #         return
+    #     selected_index = self.schools_combo.currentIndex()
+    #     if selected_index < 0:
+    #         QMessageBox.warning(self, "Keine Schule", "Bitte wählen Sie eine Schule aus der Liste.")
+    #         return
 
-        school = self.found_schools[selected_index]
+    #     school = self.found_schools[selected_index]
         
-        self.debug_log(f"Ausgewählte Schule: {school['displayName']}")
+    #     self.debug_log(f"Ausgewählte Schule: {school['displayName']}")
 
-        # 3) Class short name
-        if self.use_defaults:
-            class_short = (
-                self.class_edit.text().strip()
-                if self.class_edit.text().strip() != self.config_data.get("Klasse", "")
-                else self.config_data.get("Klasse", "")
-            )
-            if not class_short or class_short == "None":
-                QMessageBox.warning(self, "Klasse fehlt", "Klasse ist nicht gesetzt oder leer.")
+    #     # 3) Class short name
+    #     if self.use_defaults:
+    #         class_short = (
+    #             self.class_edit.text().strip()
+    #             if self.class_edit.text().strip() != self.config_data.get("Klasse", "")
+    #             else self.config_data.get("Klasse", "")
+    #         )
+    #         if not class_short or class_short == "None":
+    #             QMessageBox.warning(self, "Klasse fehlt", "Klasse ist nicht gesetzt oder leer.")
+    #             return
+    #     else:
+    #         class_short = self.class_edit.text().strip()
+    #         if not class_short:
+    #             QMessageBox.warning(self, "Klasse fehlt", "Bitte einen Klassennamen (Kurzname) eingeben.")
+    #             return
+
+    #     # We'll create a fresh session and do the form-based login
+    #     session = requests.Session()
+
+    #     # Step 1: initial GET
+    #     init_url = f"https://{school['server']}/WebUntis/?school={school['loginSchool']}"
+    #     r1 = session.get(init_url)
+    #     if debug_mode:
+    #         self.debug_log(f"Initial GET status: {r1.status_code} {session.cookies.get_dict()}")
+
+    #     # with open("init_url_get.txt", "w+", encoding="utf8") as file:
+    #     #     file.write(r1.text)
+
+    #     jsession_id = session.cookies.get("JSESSIONID")
+
+    #     trace_id = session.cookies.get("traceId")
+
+    #     tenant_id = session.cookies.get("Tenant-Id", school["tenantId"])
+
+    #     xcrsf_token = get_x_crsf_token(school["server"], school["loginSchool"], school, jsession_id, trace_id, debug_mode=debug_mode)
+
+
+    #     # Step 2: j_spring_security_check
+    #     post_url = f"https://{school['server']}/WebUntis/j_spring_security_check"
+    #     login_params = {
+    #         "school": school["loginSchool"],
+    #         "j_username": username,
+    #         "j_password": password,
+    #         "token": ""
+    #     }
+
+    #     headers = get_headers(tenant_id=tenant_id, schoolname=school["loginSchool"], server=school["server"], login_name="",jsession_id=jsession_id, trace_id=trace_id,xcsrf_token=xcrsf_token ,method="get_login_headers")
+
+    #     r2 = session.post(post_url, params=login_params, headers=headers)
+    #     if debug_mode:
+    #         self.debug_log(f"Login POST status: {r2.status_code} {session.cookies.get_dict()}")
+    #     data = r2.json()
+    #     if debug_mode:
+    #         print(data)
+        
+
+    #     error_msg = data.get('loginError')
+
+        
+        
+
+    #     if "loginError" in data:
+    #         if debug_mode:
+    #             print("Login Error: " + error_msg)
+    #         QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\nZugangsdaten überprüfen! Versuche Öffentlichen Login!")
+    #         try_public_login = True
+    #         #return
+    #     else:
+    #         try_public_login = False
+        
+    #     # Extract the new cookies from the session
+            
+    #     new_jsession_id = session.cookies.get("JSESSIONID")
+    #     new_trace_id    = session.cookies.get("traceId")
+    #     # Some instances also have a 'Tenant-Id' or 'schoolname' cookie; we can fetch them similarly if needed
+    #     new_tenant_id   = session.cookies.get("Tenant-Id", school["tenantId"])  # fallback to old
+        
+    #     #print("Login text snippet: " + r2.text[:300])
+
+    #     if r2.status_code != 200:
+    #         QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\n. ")
+    #         #return
+
+    #     #Get bearer token for student information
+    #     bearer_url = f'https://{school["server"]}/WebUntis/api/token/new'
+    #     r3 = session.get(bearer_url, headers=headers)
+    #     bearer_token = r3.text
+
+    #     #Get student information with bearer
+    #     student_info_url = f'https://{school["server"]}/WebUntis/api/rest/view/v1/app/data'
+
+    #     student_headers = headers | {"Authorization": f"Bearer {bearer_token}"}
+    #     if debug_mode:
+    #         print(f"StudentHeaders: {student_headers}")
+
+    #     r4 = session.get(student_info_url, headers=student_headers)
+    #     student_info = r4.json()
+    #     Student_name = student_info["user"]["person"]["displayName"]
+    #     student_id = student_info["user"]["person"]["id"]
+    #     if debug_mode:
+    #         #print(f"Student Info: {student_info}")
+    #         print(f"Student Name: {Student_name}")
+    #         print(f"Student ID: {student_id}")
+
+    #     class_list, error_msg = get_classes(
+    #         server=school["server"],
+    #         school={
+    #             **school,  # same dict, but we can override if needed
+    #             "tenantId": new_tenant_id  # updated if your server sets it differently
+    #         },
+    #         jsession_id=new_jsession_id,
+    #         trace_id=new_trace_id,
+    #         debug_mode=debug_mode
+    #     )
+    #     get_classes_forbidden=False
+
+    #     class_id = ""
+        
+    #         #self.debug_log(error_msg["errorMessage"])
+    #     if error_msg:
+    #         if debug_mode:
+    #             print(error_msg["errorCode"])
+    #             print(error_msg)
+    #         if not try_public_login:
+    #             if debug_mode:
+    #                 self.debug_log(f'Fehler bei get_classes: {error_msg["errorMessage"]}')
+    #             if error_msg["errorCode"] == "FORBIDDEN":
+    #                 get_classes_forbidden = True
+    #             if not get_classes_forbidden:  
+    #                 return
+    #         else:
+    #             QMessageBox.critical(self, "Öffentlicher Login", "Öffentlicher Login kann nicht verwendet werden. Bitte überprüfen Sie Ihre Zugangsdaten!")
+    #             return
+    #     if not get_classes_forbidden:
+    #         matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
+    #         if not matching_class:
+    #             self.debug_log(f"Klasse '{class_short}' nicht gefunden.")
+    #             #return
+    #     if not get_classes_forbidden:
+    #         class_id = matching_class["id"]
+    #         self.debug_log(f"Klasse {matching_class['displayName']} (ID={class_id}) wird geladen...")
+
+    #    #Header updaten
+    #     final_headers = get_headers(
+    #         tenant_id=new_tenant_id,
+    #         schoolname=school["loginName"],
+    #         server=school["server"],
+    #         login_name=school["loginSchool"],
+    #         jsession_id=new_jsession_id,
+    #         trace_id=new_trace_id,
+    #         method="get_headers"
+    #     )
+    #     # class_id = None
+    #     # student_id = None
+
+    #     if not class_id or class_id == "":
+    #     # Daten der nächsten Wochen holen
+    #         all_days = fetch_data_for_next_weeks(
+    #             school={
+    #                 **school,  # pass updated if needed
+    #                 "tenantId": new_tenant_id
+    #             },
+    #             week_count=week_count,
+    #             headers=final_headers,
+    #             debug_mode=debug_mode,
+    #             debug_log_func=self.debug_log,
+    #             student_id=student_id
+    #         )
+    #     if not student_id or student_id == "":
+    #     # Daten der nächsten Wochen holen
+    #         all_days = fetch_data_for_next_weeks(
+    #             school={
+    #                 **school,  # pass updated if needed
+    #                 "tenantId": new_tenant_id
+    #             },
+    #             class_id=class_id,
+    #             week_count=week_count,
+    #             headers=final_headers,
+    #             debug_mode=debug_mode,
+    #             debug_log_func=self.debug_log,
+    #         )
+    #     if not all_days:
+    #         self.debug_log("Keine Stunden gefunden.")
+    #         return
+
+    #     # 7) ICS generieren
+    #     global create_oof
+
+    #     if self.create_oof_box.isChecked():
+
+    #         create_oof = True
+    #     else:
+    #         create_oof = False
+
+    #     ics_path = create_ics_file_for_week(
+    #         school_days_subjects_teachers=all_days,
+    #         schoolname=school["loginName"],
+    #         output_dir=self.config_data.get("Dateipfad"),
+    #         school_data=school,
+    #         name=name,
+    #         betrieb=betrieb,
+    #         email=email,
+    #         debug_log_func=self.debug_log,
+    #         create_oof=create_oof
+    #     )
+    #     if ics_path:
+    #         ret = QMessageBox.question(self, "Öffnen?", "Soll die .ics-Datei in Ihrem Kalender geöffnet werden?", QMessageBox.Yes | QMessageBox.No)
+    #         if ret == QMessageBox.Yes:
+    #             open_ics_with_default_app(ics_path)
+
+    #     # 8) Debug build stuff
+    #     if debug_mode:
+    #         self.debug_log(f'loginName={school["loginName"]}')
+    #         ret = QMessageBox.question(self, "Builden?","Soll diese Version gebuildet werden?", QMessageBox.Yes | QMessageBox.No)
+    #         if ret == QMessageBox.Yes:
+    #             self.debug_log("Version wird gebaut...")
+    #             if os.path.exists("./dist/WebLook.exe"):
+    #                 os.remove("./dist/WebLook.exe")
+
+    #             script_directory = os.path.dirname(os.path.abspath(sys.argv[0])) 
+    #             icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
+    #             os.system(f'pyinstaller main.py --onefile --name WebLook --icon "{icon_path}"')
+    #             if not os.path.exists("./dist/WebLook.exe"):
+                    
+    #                 print("Build failed.")
+    #             else:
+    #                 assets_path = os.path.join(script_directory, "assets")
+    #                 build_assets_path = os.path.join(script_directory, "dist", "assets")
+    #                 if not os.path.exists(build_assets_path):
+    #                     os.makedirs(build_assets_path)
+    #                     os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s')
+    #                 print("Build successful.")
+
+
+
+    def run_fetch(self):
+        """
+        Main function to fetch schedule data, perform authentication, and generate ICS files.
+        """
+        try:
+            self.refresh()
+            self.debug_log("Starte Stundenplan-Abruf...")
+
+            # Debug mode check
+            debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+            if debug_mode:
+                print("Debugging-Modus aktiviert.")
+
+            # Validate basic config
+            name = self.config_data.get("Name", "").strip()
+            email = self.config_data.get("Email", "").strip()
+            username = self.config_data.get("Username", "").strip()
+            password = self.config_data.get("Passwort", "").strip()
+            betrieb = self.config_data.get("Betrieb", "").strip()
+
+            if not name or not email or not betrieb:
+                QMessageBox.warning(self, "Fehlende Angaben", "Bitte Name, Email und Betrieb in Settings eintragen.")
                 return
-        else:
+
+            week_count = self.weeks_spin.value()
+
+            # Validate selected school
+            if not hasattr(self, 'found_schools') or not self.found_schools:
+                QMessageBox.information(self, "Keine Schule ausgewählt", "Bitte zuerst auf 'Schulen laden' klicken und eine Schule auswählen.")
+                return
+
+            selected_index = self.schools_combo.currentIndex()
+            if selected_index < 0:
+                QMessageBox.warning(self, "Keine Schule", "Bitte wählen Sie eine Schule aus der Liste.")
+                return
+
+            school = self.found_schools[selected_index]
+            self.debug_log(f"Ausgewählte Schule: {school['displayName']}")
+
+            # Validate class short name
             class_short = self.class_edit.text().strip()
             if not class_short:
                 QMessageBox.warning(self, "Klasse fehlt", "Bitte einen Klassennamen (Kurzname) eingeben.")
                 return
 
-        # We'll create a fresh session and do the form-based login
-        session = requests.Session()
+            # Initialize session
+            session = requests.Session()
 
-        # Step 1: initial GET
-        init_url = f"https://{school['server']}/WebUntis/?school={school['loginSchool']}"
-        r1 = session.get(init_url)
-        if debug_mode:
-            self.debug_log(f"Initial GET status: {r1.status_code} {session.cookies.get_dict()}")
-
-        # with open("init_url_get.txt", "w+", encoding="utf8") as file:
-        #     file.write(r1.text)
-
-        jsession_id = session.cookies.get("JSESSIONID")
-
-        trace_id = session.cookies.get("traceId")
-
-        tenant_id = session.cookies.get("Tenant-Id", school["tenantId"])
-
-        xcrsf_token = get_x_crsf_token(school["server"], school["loginSchool"], school, jsession_id, trace_id, debug_mode=debug_mode)
-
-
-        # Step 2: j_spring_security_check
-        post_url = f"https://{school['server']}/WebUntis/j_spring_security_check"
-        login_params = {
-            "school": school["loginSchool"],
-            "j_username": username,
-            "j_password": password,
-            "token": ""
-        }
-
-        headers = get_headers(tenant_id=tenant_id, schoolname=school["loginSchool"], server=school["server"], login_name="",jsession_id=jsession_id, trace_id=trace_id,xcsrf_token=xcrsf_token ,method="get_login_headers")
-
-        r2 = session.post(post_url, params=login_params, headers=headers)
-        if debug_mode:
-            self.debug_log(f"Login POST status: {r2.status_code} {session.cookies.get_dict()}")
-
-        data = r2.json()
-
-        error_msg = data.get('loginError')
-
-
-        if "loginError" in data:
+            # Step 1: Perform initial GET request
+            init_url = f"https://{school['server']}/WebUntis/?school={school['loginSchool']}"
+            r1 = session.get(init_url)
             if debug_mode:
-                print("Login Error: " + error_msg)
-            QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\nZugangsdaten überprüfen! Versuche Öffentlichen Login!")
-            try_public_login = True
-            #return
-        else:
-            try_public_login = False
-        
-        # Extract the new cookies from the session
-            
-        new_jsession_id = session.cookies.get("JSESSIONID")
-        new_trace_id    = session.cookies.get("traceId")
-        # Some instances also have a 'Tenant-Id' or 'schoolname' cookie; we can fetch them similarly if needed
-        new_tenant_id   = session.cookies.get("Tenant-Id", school["tenantId"])  # fallback to old
-        
-        #print("Login text snippet: " + r2.text[:300])
+                self.debug_log(f"Initial GET status: {r1.status_code}, Cookies: {session.cookies.get_dict()}")
 
-        if r2.status_code != 200:
-            QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\n. ")
-            #return
-        class_list, error_msg = get_classes(
-            server=school["server"],
-            school={
-                **school,  # same dict, but we can override if needed
-                "tenantId": new_tenant_id  # updated if your server sets it differently
-            },
-            jsession_id=new_jsession_id,
-            trace_id=new_trace_id,
-            debug_mode=debug_mode
-        )
-        
-            #self.debug_log(error_msg["errorMessage"])
-        if error_msg:
+            jsession_id = session.cookies.get("JSESSIONID")
+            trace_id = session.cookies.get("traceId")
+            tenant_id = session.cookies.get("Tenant-Id", school.get("tenantId", ""))
+
+            # Fetch CSRF token
+            xcrsf_token = get_x_crsf_token(
+                server=school["server"],
+                loginName=school["loginSchool"],
+                school=school,
+                jsession_id=jsession_id,
+                trace_id=trace_id,
+                debug_mode=debug_mode,
+            )
+
+            # Step 2: Perform login
+            post_url = f"https://{school['server']}/WebUntis/j_spring_security_check"
+            login_params = {
+                "school": school["loginSchool"],
+                "j_username": username,
+                "j_password": password,
+                "token": ""
+            }
+            headers = get_headers(
+                tenant_id=tenant_id,
+                schoolname=school["loginSchool"],
+                login_name=school["loginName"],
+                server=school["server"],
+                jsession_id=jsession_id,
+                trace_id=trace_id,
+                xcsrf_token=xcrsf_token,
+                method="get_login_headers"
+            )
+
+            r2 = session.post(post_url, params=login_params, headers=headers)
             if debug_mode:
-                print(error_msg["errorCode"])
-            if not try_public_login:
-                self.debug_log(f'Fehler bei get_classes: {error_msg["errorMessage"]}')
-                return
-            else:
-                QMessageBox.critical(self, "Öffentlicher Login", "Öffentlicher Login kann nicht verwendet werden. Bitte überprüfen Sie Ihre Zugangsdaten!")
+                self.debug_log(f"Login POST status: {r2.status_code}, Cookies: {session.cookies.get_dict()}")
+
+            # Handle login errors
+            data = r2.json()
+            if "loginError" in data:
+                error_msg = data.get("loginError", "Unbekannter Fehler")
+                self.debug_log(f"Login Fehler: {error_msg}")
+                QMessageBox.critical(self, "Login Fehler", "Login fehlgeschlagen. Zugangsdaten überprüfen.")
                 return
 
-        matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
-        if not matching_class:
-            self.debug_log(f"Klasse '{class_short}' nicht gefunden.")
-            return
+            # Step 3: Fetch bearer token
+            bearer_url = f'https://{school["server"]}/WebUntis/api/token/new'
+            r3 = session.get(bearer_url, headers=headers)
+            bearer_token = r3.text.strip()
 
-        class_id = matching_class["id"]
-        self.debug_log(f"Klasse {matching_class['displayName']} (ID={class_id}) wird geladen...")
+            # Step 4: Fetch student information
+            student_info_url = f'https://{school["server"]}/WebUntis/api/rest/view/v1/app/data'
+            student_headers = headers | {"Authorization": f"Bearer {bearer_token}"}
+            r4 = session.get(student_info_url, headers=student_headers)
+            student_info = r4.json()
+            student_id = student_info["user"]["person"]["id"]
+            self.debug_log(f"Student Name: {student_info['user']['person']['displayName']}, ID: {student_id}")
 
-       #Header updaten
-        final_headers = get_headers(
-            tenant_id=new_tenant_id,
-            schoolname=school["loginName"],
-            server=school["server"],
-            login_name=school["loginSchool"],
-            jsession_id=new_jsession_id,
-            trace_id=new_trace_id,
-            method="get_headers"
-        )
+            # Step 5: Fetch class list
+            class_list, error_msg = get_classes(
+                server=school["server"],
+                school={**school, "tenantId": tenant_id},
+                jsession_id=session.cookies.get("JSESSIONID"),
+                trace_id=session.cookies.get("traceId"),
+                debug_mode=debug_mode
+            )
 
-        # Daten der nächsten Wochen holen
-        all_days = fetch_data_for_next_weeks(
-            school={
-                **school,  # pass updated if needed
-                "tenantId": new_tenant_id
-            },
-            class_id=class_id,
-            week_count=week_count,
-            headers=final_headers,
-            debug_mode=debug_mode,
-            debug_log_func=self.debug_log
-        )
-        if not all_days:
-            self.debug_log("Keine Stunden gefunden.")
-            return
-
-        # 7) ICS generieren
-        global create_oof
-
-        if self.create_oof_box.isChecked():
-
-            create_oof = True
-        else:
-            create_oof = False
-
-        ics_path = create_ics_file_for_week(
-            school_days_subjects_teachers=all_days,
-            schoolname=school["loginName"],
-            output_dir=self.config_data.get("Dateipfad"),
-            school_data=school,
-            name=name,
-            betrieb=betrieb,
-            email=email,
-            debug_log_func=self.debug_log,
-            create_oof=create_oof
-        )
-        if ics_path:
-            ret = QMessageBox.question(self, "Öffnen?", "Soll die .ics-Datei in Ihrem Kalender geöffnet werden?", QMessageBox.Yes | QMessageBox.No)
-            if ret == QMessageBox.Yes:
-                open_ics_with_default_app(ics_path)
-
-        # 8) Debug build stuff
-        if debug_mode:
-            self.debug_log(f'loginName={school["loginName"]}')
-            ret = QMessageBox.question(self, "Builden?","Soll diese Version gebuildet werden?", QMessageBox.Yes | QMessageBox.No)
-            if ret == QMessageBox.Yes:
-                self.debug_log("Version wird gebaut...")
-                if os.path.exists("./dist/WebLook.exe"):
-                    os.remove("./dist/WebLook.exe")
-
-                script_directory = os.path.dirname(os.path.abspath(sys.argv[0])) 
-                icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
-                os.system(f'pyinstaller main.py --onefile --name WebLook --icon "{icon_path}"')
-                if not os.path.exists("./dist/WebLook.exe"):
-                    
-                    print("Build failed.")
+            if error_msg:
+                #if debug_mode:
+                if not error_msg["errorCode"] == "FORBIDDEN":
+                    self.debug_log(f"Fehler beim öffentlichen Klassenabruf: {error_msg}")
+                    return
                 else:
-                    assets_path = os.path.join(script_directory, "assets")
-                    build_assets_path = os.path.join(script_directory, "dist", "assets")
-                    if not os.path.exists(build_assets_path):
-                        os.makedirs(build_assets_path)
-                        os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s')
-                    print("Build successful.")
+                    self.debug_log(f"Starte privaten Klassenabruf")
+
+                
+                class_list = []
+
+            # Find matching class
+            matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
+            class_id = matching_class["id"] if matching_class else None
+
+            if not class_id:
+                self.debug_log(f"Klasse '{class_short}' nicht gefunden. Es wird der Stundenplan des Schülers geladen.")
+
+            # Step 6: Fetch timetable data
+            all_days = fetch_data_for_next_weeks(
+                school={**school, "tenantId": tenant_id},
+                class_id=class_id,
+                student_id=student_id if not class_id else None,  # Fallback to student ID
+                week_count=week_count,
+                headers=headers,
+                debug_mode=debug_mode,
+                debug_log_func=self.debug_log
+            )
+
+            if not all_days:
+                self.debug_log("Keine Stunden gefunden.")
+                return
+
+            # Step 7: Generate ICS file
+            ics_path = create_ics_file_for_week(
+                school_days_subjects_teachers=all_days,
+                schoolname=school["loginName"],
+                output_dir=self.config_data.get("Dateipfad", "./"),
+                school_data=school,
+                name=name,
+                betrieb=betrieb,
+                email=email,
+                debug_log_func=self.debug_log,
+                create_oof=self.create_oof_box.isChecked()
+            )
+
+            if ics_path:
+                QMessageBox.information(self, "Erfolg", "ICS-Datei erfolgreich erstellt.")
+                ret = QMessageBox.question(self, "Öffnen?", "ICS-Datei öffnen?", QMessageBox.Yes | QMessageBox.No)
+                if ret == QMessageBox.Yes:
+                    open_ics_with_default_app(ics_path)
+
+        except Exception as e:
+            self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
+            QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten. Siehe Log für Details.")
+
+
 
 
 def main():
