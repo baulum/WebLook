@@ -643,7 +643,7 @@ def get_classes(server, school, jsession_id, trace_id, debug_mode=False):
         )
     )
     if response.status_code != 200:
-        return None, response.text
+        return None, response.json()
     data = response.json()
     classes = data["classes"]
     class_data = []
@@ -918,6 +918,7 @@ class SettingsPage(QWidget):
     """Represents the settings page. Allows editing config.env values."""
     def __init__(self, config_data, parent=None):
         global debug_mode
+        debug_mode = False
         super().__init__(parent)
         self.setObjectName("settingsPage")
         self.config_data = config_data
@@ -962,34 +963,56 @@ class SettingsPage(QWidget):
                 browse_btn.setIcon(QIcon("./assets/icons/inverted/browse_inverted.png"))
                 browse_btn.clicked.connect(self.getFolder)
                 grid.addWidget(browse_btn, row, 2, 1, 1)
-
+            if key == "Passwort":
+                self.password_edit = QLineEdit()
+                self.password_edit.setEchoMode(QLineEdit.Password)
+                self.show_pass_btn = QPushButton()
+                self.pass_is_visible = False
+                self.show_pass_btn.setIcon(QIcon("./assets/icons/inverted/show_inverted.png"))
+                grid.addWidget(self.password_edit, row, 1, 1, 1)
+                grid.addWidget(self.show_pass_btn, row, 2, 1, 1)
             if key == "Debugging":
                 self.check_box = QCheckBox()
                 val = self.config_data.get(key, False)
                 if val.lower() == "true":
                     self.check_box.setChecked(True)
                     self.check_box.setText("Debugging ist eingeschaltet")
-                else:
+                else:     
                     self.check_box.setChecked(False)
                     self.check_box.setText("Debugging ist ausgeschaltet")
                 grid.addWidget(self.check_box, row, 1, 1, 1)
             row += 1
-
+        #global debug_mode
+        self.show_pass_btn.clicked.connect(self.change_pass_visible)
         self.check_box.clicked.connect(self.change_debug)
-        btn_save = QPushButton("Speichern")
-        btn_save.setIcon(QIcon("./assets/icons/inverted/save_inverted.png"))
-        btn_save.clicked.connect(self.save_settings)
-        grid.addWidget(btn_save, row, 0, 1, 2)
+        self.btn_save = QPushButton("Speichern")
+        self.btn_save.setIcon(QIcon("./assets/icons/inverted/save_inverted.png"))
+        self.btn_save.clicked.connect(self.save_settings)
+        grid.addWidget(self.btn_save, row, 0, 1, 2)
         self.refresh()
+
+    def change_pass_visible(self):
+        """Toggle password visibility."""
+        self.pass_is_visible = not self.pass_is_visible  # Toggle visibility
+        if self.pass_is_visible:
+            self.password_edit.setEchoMode(QLineEdit.Normal)
+            self.show_pass_btn.setIcon(QIcon("./assets/icons/inverted/hide_inverted.png"))
+        else:
+            self.password_edit.setEchoMode(QLineEdit.Password)
+            self.show_pass_btn.setIcon(QIcon("./assets/icons/inverted/show_inverted.png"))
+        if debug_mode:
+            print("Password visibility changed")
 
     def change_debug(self, checked):
         if self.check_box.isChecked():
             update_config_env("Debugging", "True")
-            self.check_box.setText("Debugging ist eingeschaltet")         
+            self.check_box.setText("Debugging ist eingeschaltet")      
+            debug_mode = True   
             print("Debugging changed to True")
         else:
             update_config_env("Debugging", "False")
             self.check_box.setText("Debugging ist ausgeschaltet")
+            debug_mode = False
             print("Debugging changed to False")
 
     def getFolder(self):
@@ -1005,12 +1028,19 @@ class SettingsPage(QWidget):
         for key, line_edit in self.entries.items():
             val = self.config_data.get(key, "")
             line_edit.setText(val)
+            if key == "Passwort":
+                self.password_edit.setText(val)
 
     def save_settings(self):
+        #print(self.password_edit.text())
         for key, line_edit in self.entries.items():
-            new_val = line_edit.text().strip()
+            new_val = line_edit.text().strip() 
+            if key == "Passwort":
+                new_val = self.password_edit.text()
             update_config_env(key, new_val)
             read_config_env(file_path="./config.env")
+            if debug_mode:
+                print(key + ": " + new_val)
         QMessageBox.information(self, "Einstellungen", "Die Einstellungen wurden erfolgreich gespeichert!")
         self.refresh()
 
@@ -1152,7 +1182,7 @@ class FetchTimetablePage(QWidget):
             self.schools_combo.setCurrentIndex(schulnummer)
         if school_amount == 1:
             self.schools_combo.setCurrentIndex(0)  # Select first school if only one is found.
-
+        
         self.debug_log(f"{len(schools)} Schulen gefunden und ComboBox gefüllt.")
 
     def debug_log(self, msg):
@@ -1261,8 +1291,11 @@ class FetchTimetablePage(QWidget):
         if "loginError" in data:
             if debug_mode:
                 print("Login Error: " + error_msg)
-            QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\nCheck Credentials.")
-            return
+            QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\nZugangsdaten überprüfen! Versuche Öffentlichen Login!")
+            try_public_login = True
+            #return
+        else:
+            try_public_login = False
         
         # Extract the new cookies from the session
             
@@ -1274,8 +1307,8 @@ class FetchTimetablePage(QWidget):
         #print("Login text snippet: " + r2.text[:300])
 
         if r2.status_code != 200:
-            QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\n.")
-            return
+            QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\n. ")
+            #return
 
         
 
@@ -1293,9 +1326,17 @@ class FetchTimetablePage(QWidget):
             trace_id=new_trace_id,
             debug_mode=debug_mode
         )
+        
+            #self.debug_log(error_msg["errorMessage"])
         if error_msg:
-            self.debug_log(f"Fehler bei get_classes: {error_msg}")
-            return
+            if debug_mode:
+                print(error_msg["errorCode"])
+            if not try_public_login:
+                self.debug_log(f'Fehler bei get_classes: {error_msg["errorMessage"]}')
+                return
+            else:
+                QMessageBox.information(self, "Öffentliches Login", "Öffentlicher Login kann nicht verwendet werden. Bitte überprüfen Sie Ihre Zugangsdaten!")
+                return
 
         matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
         if not matching_class:
