@@ -1039,8 +1039,8 @@ class SettingsPage(QWidget):
                 new_val = self.password_edit.text()
             update_config_env(key, new_val)
             read_config_env(file_path="./config.env")
-            if debug_mode:
-                print(key + ": " + new_val)
+            #if debug_mode:
+            #print(key + ": " + new_val)
         QMessageBox.information(self, "Einstellungen", "Die Einstellungen wurden erfolgreich gespeichert!")
         self.refresh()
 
@@ -1192,6 +1192,7 @@ class FetchTimetablePage(QWidget):
         self.config_data = read_config_env()
 
     def run_fetch(self):
+        self.refresh()
         self.debug_log("Starte Stundenplan-Abruf...")
         global debug_mode
         debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
@@ -1240,14 +1241,8 @@ class FetchTimetablePage(QWidget):
                 QMessageBox.warning(self, "Klasse fehlt", "Bitte einen Klassennamen (Kurzname) eingeben.")
                 return
 
-        #
-        # >>>>>>>>>>>>>>> THIS is the NEW LOGIN SNIPPET <<<<<<<<<<<<<<<<<
-        #
-        # We'll create a fresh session and do the form-based login that works:
+        # We'll create a fresh session and do the form-based login
         session = requests.Session()
-
-
-        
 
         # Step 1: initial GET
         init_url = f"https://{school['server']}/WebUntis/?school={school['loginSchool']}"
@@ -1278,7 +1273,6 @@ class FetchTimetablePage(QWidget):
 
         headers = get_headers(tenant_id=tenant_id, schoolname=school["loginSchool"], server=school["server"], login_name="",jsession_id=jsession_id, trace_id=trace_id,xcsrf_token=xcrsf_token ,method="get_login_headers")
 
-        
         r2 = session.post(post_url, params=login_params, headers=headers)
         if debug_mode:
             self.debug_log(f"Login POST status: {r2.status_code} {session.cookies.get_dict()}")
@@ -1309,13 +1303,6 @@ class FetchTimetablePage(QWidget):
         if r2.status_code != 200:
             QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\n. ")
             #return
-
-        
-
-
-        
-
-        
         class_list, error_msg = get_classes(
             server=school["server"],
             school={
@@ -1335,7 +1322,7 @@ class FetchTimetablePage(QWidget):
                 self.debug_log(f'Fehler bei get_classes: {error_msg["errorMessage"]}')
                 return
             else:
-                QMessageBox.information(self, "Öffentliches Login", "Öffentlicher Login kann nicht verwendet werden. Bitte überprüfen Sie Ihre Zugangsdaten!")
+                QMessageBox.critical(self, "Öffentlicher Login", "Öffentlicher Login kann nicht verwendet werden. Bitte überprüfen Sie Ihre Zugangsdaten!")
                 return
 
         matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
@@ -1346,7 +1333,7 @@ class FetchTimetablePage(QWidget):
         class_id = matching_class["id"]
         self.debug_log(f"Klasse {matching_class['displayName']} (ID={class_id}) wird geladen...")
 
-        # 5) Build final "headers" to pass to fetch_data_for_next_weeks(...) with the updated cookies
+       #Header updaten
         final_headers = get_headers(
             tenant_id=new_tenant_id,
             schoolname=school["loginName"],
@@ -1357,7 +1344,7 @@ class FetchTimetablePage(QWidget):
             method="get_headers"
         )
 
-        # 6) Now we fetch the next N weeks
+        # Daten der nächsten Wochen holen
         all_days = fetch_data_for_next_weeks(
             school={
                 **school,  # pass updated if needed
