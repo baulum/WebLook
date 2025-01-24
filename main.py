@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
 # Original Helper Functions
 # (Modified to remove console input, replaced with PyQt usage)
 # -----------------------------
-
+ausbilder_modus = False
 def read_config_env(file_path='config.env'):
     config = {}
     script_directory = os.path.dirname(os.path.abspath(sys.argv[0])) 
@@ -432,6 +432,7 @@ def create_ics_file_for_week(
     email="",
     debug_log_func=print,
     create_oof=False,
+    ausbilder_modus=False,
     oof_custom_text="",  # Editable custom text for OOF messages
     country="DE",  # Default to Germany for holidays
     prov=None,     # Optional province code (e.g., "BY" for Bavaria)
@@ -553,48 +554,49 @@ def create_ics_file_for_week(
     #         "STATUS:CONFIRMED",
     #         "END:VEVENT"
     #     ])
+    print("ausbildermodus:" + str(ausbilder_modus))
+    if not ausbilder_modus:
+        for lesson in sorted_lessons:
+            if debug_mode:
+                print(lesson)
+            event_start_dt = datetime.datetime.combine(
+                lesson["lesson_date"],
+                lesson["start_time"]
+            )
+            event_end_dt = datetime.datetime.combine(
+                lesson["lesson_date"],
+                lesson["end_time"]
+            )
+            event_start = event_start_dt.strftime("%Y%m%dT%H%M%S")
+            event_end = event_end_dt.strftime("%Y%m%dT%H%M%S")
 
-    for lesson in sorted_lessons:
-        if debug_mode:
-            print(lesson)
-        event_start_dt = datetime.datetime.combine(
-            lesson["lesson_date"],
-            lesson["start_time"]
-        )
-        event_end_dt = datetime.datetime.combine(
-            lesson["lesson_date"],
-            lesson["end_time"]
-        )
-        event_start = event_start_dt.strftime("%Y%m%dT%H%M%S")
-        event_end = event_end_dt.strftime("%Y%m%dT%H%M%S")
+            # Combine multiple subjects and teachers into a single string
+            subjects = ", ".join(lesson.get("subjects", []))  # Fallback to an empty list if 'subjects' is missing
+            teachers = ", ".join(lesson.get("teachers", []))  # Fallback to an empty list if 'teachers' is missing
+            event_description = f"{subjects} - {teachers}"
 
-        # Combine multiple subjects and teachers into a single string
-        subjects = ", ".join(lesson.get("subjects", []))  # Fallback to an empty list if 'subjects' is missing
-        teachers = ", ".join(lesson.get("teachers", []))  # Fallback to an empty list if 'teachers' is missing
-        event_description = f"{subjects} - {teachers}"
+            # Determine summary and description based on lesson type
+            if lesson.get("is_exam"):
+                summary_line = f"Prüfung {subjects}"
+                description_line = f"{event_description} Prüfung!"
+            elif lesson.get("is_additional"):
+                summary_line = f"Ersatzstunde {subjects}"
+                description_line = f"{event_description} Ersatz!"
+            else:
+                summary_line = subjects
+                description_line = event_description
 
-        # Determine summary and description based on lesson type
-        if lesson.get("is_exam"):
-            summary_line = f"Prüfung {subjects}"
-            description_line = f"{event_description} Prüfung!"
-        elif lesson.get("is_additional"):
-            summary_line = f"Ersatzstunde {subjects}"
-            description_line = f"{event_description} Ersatz!"
-        else:
-            summary_line = subjects
-            description_line = event_description
-
-        # Append the VEVENT
-        ics_content.extend([
-            "BEGIN:VEVENT",
-            f"DTSTART:{event_start}",
-            f"DTEND:{event_end}",
-            f"SUMMARY:{summary_line}",
-            f"DESCRIPTION:{description_line}",
-            f"LOCATION:{teachers}",
-            "STATUS:CONFIRMED",
-            "END:VEVENT"
-        ])
+            # Append the VEVENT
+            ics_content.extend([
+                "BEGIN:VEVENT",
+                f"DTSTART:{event_start}",
+                f"DTEND:{event_end}",
+                f"SUMMARY:{summary_line}",
+                f"DESCRIPTION:{description_line}",
+                f"LOCATION:{teachers}",
+                "STATUS:CONFIRMED",
+                "END:VEVENT"
+            ])
 
 
     # Create OOF blocks for consecutive school days
@@ -627,37 +629,63 @@ def create_ics_file_for_week(
             # Calculate the next workday after the last school day in the block
             next_workday_dt = get_next_workday(block_latest, holiday_dates=holiday_dates, school_days=school_days)
             next_workday_str = next_workday_dt.strftime("%d.%m.%Y")
-
-            oof_description = (
-                "Sehr geehrte Damen und Herren,\\n\\n"
-                f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str} "
-                "wieder erreichen.\\n\\n"
-                f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
-            )
+            if not ausbilder_modus:
+                oof_description = (
+                    "Sehr geehrte Damen und Herren,\\n\\n"
+                    f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str} "
+                    "wieder erreichen.\\n\\n"
+                    f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
+                )
+            else:
+                oof_description = (
+                    "Sehr geehrte Damen und Herren,\\n\\n"
+                    f"Der Azubi ({name}) ist an der {display_name} ({address})! "
+                    f"Er/Sie ist ab dem {next_workday_str} wieder erreichbar.\\n\\n"
+                    f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
+                )
 
             # Define the OOF event's start and end dates (inclusive)
             dtstart_oof = block_earliest.strftime("%Y%m%d")
             dtend_oof = (block_latest + datetime.timedelta(days=1)).strftime("%Y%m%d")
-
-            # Append the OOF VEVENT
-            ics_content.extend([
-                "BEGIN:VEVENT",
-                "CLASS:PUBLIC",
-                f"CREATED:{creation_date}",
-                f"DESCRIPTION:{oof_description}",
-                f"DTEND;VALUE=DATE:{dtend_oof}",
-                f"DTSTART;VALUE=DATE:{dtstart_oof}",
-                f"LOCATION:",
-                f"SUMMARY;LANGUAGE=de:{display_name} ({address})",
-                "TRANSP:OPAQUE",
-                "STATUS:CONFIRMED",
-                "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
-                "X-MICROSOFT-CDO-IMPORTANCE:1",
-                "X-MICROSOFT-CDO-DISALLOW-COUNTER:FALSE",
-                "X-MS-OLK-AUTOFILLLOCATION:FALSE",
-                "X-MS-OLK-CONFTYPE:0",
-                "END:VEVENT"
-            ])
+            if not ausbilder_modus:
+                # Append the OOF VEVENT
+                ics_content.extend([
+                    "BEGIN:VEVENT",
+                    "CLASS:PUBLIC",
+                    f"CREATED:{creation_date}",
+                    f"DESCRIPTION:{oof_description}",
+                    f"DTEND;VALUE=DATE:{dtend_oof}",
+                    f"DTSTART;VALUE=DATE:{dtstart_oof}",
+                    f"LOCATION:",
+                    f"SUMMARY;LANGUAGE=de:{display_name} ({address})",
+                    "TRANSP:OPAQUE",
+                    "STATUS:CONFIRMED",
+                    "X-MICROSOFT-CDO-BUSYSTATUS:OOF",
+                    "X-MICROSOFT-CDO-IMPORTANCE:1",
+                    "X-MICROSOFT-CDO-DISALLOW-COUNTER:FALSE",
+                    "X-MS-OLK-AUTOFILLLOCATION:FALSE",
+                    "X-MS-OLK-CONFTYPE:0",
+                    "END:VEVENT"
+                ])
+            else:
+                # Append the OOF VEVENT
+                ics_content.extend([
+                    "BEGIN:VEVENT",
+                    "CLASS:PUBLIC",
+                    f"CREATED:{creation_date}",
+                    f"DESCRIPTION:{oof_description}",
+                    f"DTEND;VALUE=DATE:{dtend_oof}",
+                    f"DTSTART;VALUE=DATE:{dtstart_oof}",
+                    f"LOCATION:",
+                    f"SUMMARY;LANGUAGE=de: Azubi {name} -- Schule",
+                    "TRANSP:OPAQUE",
+                    "STATUS:CONFIRMED",
+                    "X-MICROSOFT-CDO-IMPORTANCE:1",
+                    "X-MICROSOFT-CDO-DISALLOW-COUNTER:FALSE",
+                    "X-MS-OLK-AUTOFILLLOCATION:FALSE",
+                    "X-MS-OLK-CONFTYPE:0",
+                    "END:VEVENT"
+                ])
 
             # Debug information
             debug_log_func(
@@ -678,8 +706,10 @@ def create_ics_file_for_week(
     formatted_creation_date = creation_date_dt.strftime("%Y-%m-%d")
     # Close the ICS calendar
     ics_content.append("END:VCALENDAR")
-
-    filename = f"{schoolname.lower()}_stundenplan_woche_{formatted_creation_date}_{block_latest}.ics"
+    if not ausbilder_modus:
+        filename = f"{schoolname.lower()}_stundenplan_woche_{formatted_creation_date}_{block_latest}.ics"
+    else:
+        filename = f"{name}_{schoolname.lower()}_azubi__stundenplan_woche_{formatted_creation_date}_{block_latest}.ics"
     file_path = os.path.join(output_dir, filename)
 
     # Write the ICS content to the file
@@ -1060,9 +1090,10 @@ class MainMenuPage(QWidget):
 
 class SettingsPage(QWidget):
     """Represents the settings page. Allows editing config.env values."""
+    #global ausbilder_modus
     def __init__(self, config_data, parent=None):
         global debug_mode
-        global ausbilder_modus
+        #global ausbilder_modus
         debug_mode = False
         super().__init__(parent)
         self.setObjectName("settingsPage")
@@ -1097,7 +1128,7 @@ class SettingsPage(QWidget):
             label = QLabel(key)
             label.setMinimumWidth(120)
             grid.addWidget(label, row, 0, 1, 1)
-            if not key == "Debugging":
+            if not key == "Debugging" or not key == "Ausbildermodus":
                 line_edit = QLineEdit()
                 val = self.config_data.get(key, "")
                 line_edit.setText(val)
@@ -1131,9 +1162,11 @@ class SettingsPage(QWidget):
                 self.ausbilder_check_box = QCheckBox()
                 val = self.config_data.get(key, False)
                 if val.lower() == "true":
+                    
                     self.ausbilder_check_box.setChecked(True)
                     self.ausbilder_check_box.setText("Ausbildermodus ist eingeschaltet")
-                else:     
+                else:
+                        
                     self.ausbilder_check_box.setChecked(False)
                     self.ausbilder_check_box.setText("Ausbildermodus ist ausgeschaltet")
                 grid.addWidget(self.ausbilder_check_box, row, 1, 1, 1)
@@ -1143,7 +1176,7 @@ class SettingsPage(QWidget):
         self.btn_save.setIcon(QIcon("./assets/icons/inverted/save_inverted.png"))
         self.show_pass_btn.clicked.connect(self.change_pass_visible)
         self.check_box.clicked.connect(self.change_debug)
-        self.ausbilder_check_box.connect(self.change_ausbilder_modus)
+        self.ausbilder_check_box.clicked.connect(self.change_ausbilder_modus)
         self.btn_save.clicked.connect(self.save_settings)
         grid.addWidget(self.btn_save, row, 0, 1, 2)
         self.refresh()
@@ -1151,14 +1184,17 @@ class SettingsPage(QWidget):
     def change_ausbilder_modus(self):
         if self.ausbilder_check_box.isChecked():
             update_config_env("Ausbildermodus", "True")
-            self.ausbilder_check_box.setText("Ausbildermodus ist eingeschaltet")      
+            self.ausbilder_check_box.setText("Ausbildermodus ist eingeschaltet")    
+ 
             ausbilder_modus = True   
             print("Ausbildermodus changed to True")
+            self.refresh()
         else:
             update_config_env("Ausbildermodus", "False")
             self.ausbilder_check_box.setText("Ausbildermodus ist ausgeschaltet")
             ausbilder_modus = False
             print("Ausbildermodus changed to False")
+            self.refresh()
 
     def change_pass_visible(self):
         """Toggle password visibility."""
@@ -1218,7 +1254,8 @@ class FetchTimetablePage(QWidget):
     def __init__(self, config_data, parent=None):
         super().__init__(parent)
         self.config_data = config_data
-
+        ausbilder_modus = self.config_data["Ausbildermodus"]
+        print(ausbilder_modus)
         layout = QVBoxLayout(self)
         title = QLabel("Stundenplan abrufen")
         font = QFont()
@@ -1634,6 +1671,7 @@ class FetchTimetablePage(QWidget):
         Main function to fetch schedule data, perform authentication, and generate ICS files.
         """
         try:
+            ausbilder_modus = (self.config_data.get("Ausbildermodus", "False").lower() == "true")
             self.refresh()
             self.debug_log("Starte Stundenplan-Abruf...")
 
@@ -1782,7 +1820,7 @@ class FetchTimetablePage(QWidget):
             if not all_days:
                 self.debug_log("Keine Stunden gefunden.")
                 return
-
+        
             # Step 7: Generate ICS file
             ics_path = create_ics_file_for_week(
                 school_days_subjects_teachers=all_days,
@@ -1792,6 +1830,7 @@ class FetchTimetablePage(QWidget):
                 name=name,
                 betrieb=betrieb,
                 email=email,
+                ausbilder_modus=ausbilder_modus,
                 debug_log_func=self.debug_log,
                 create_oof=self.create_oof_box.isChecked()
             )
