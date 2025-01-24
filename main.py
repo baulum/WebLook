@@ -40,7 +40,8 @@ def read_config_env(file_path='config.env'):
         "Schulnummer": "None",
         "Wochen": "4",
         "Dateipfad": default_path, 
-        "Debugging": "False"
+        "Debugging": "False",
+        "Ausbildermodus":"False"
     }
 
     try:
@@ -1061,6 +1062,7 @@ class SettingsPage(QWidget):
     """Represents the settings page. Allows editing config.env values."""
     def __init__(self, config_data, parent=None):
         global debug_mode
+        global ausbilder_modus
         debug_mode = False
         super().__init__(parent)
         self.setObjectName("settingsPage")
@@ -1089,7 +1091,7 @@ class SettingsPage(QWidget):
         settings_keys = [
             "Name", "Email", "Username", "Passwort", "Betrieb",
             "Stadt/Adresse", "Klasse",
-            "Schulnummer", "Wochen", "Dateipfad", "Debugging"
+            "Schulnummer", "Wochen", "Dateipfad", "Debugging", "Ausbildermodus"
         ]
         for key in settings_keys:
             label = QLabel(key)
@@ -1124,15 +1126,39 @@ class SettingsPage(QWidget):
                     self.check_box.setChecked(False)
                     self.check_box.setText("Debugging ist ausgeschaltet")
                 grid.addWidget(self.check_box, row, 1, 1, 1)
+
+            if key == "Ausbildermodus":
+                self.ausbilder_check_box = QCheckBox()
+                val = self.config_data.get(key, False)
+                if val.lower() == "true":
+                    self.ausbilder_check_box.setChecked(True)
+                    self.ausbilder_check_box.setText("Ausbildermodus ist eingeschaltet")
+                else:     
+                    self.ausbilder_check_box.setChecked(False)
+                    self.ausbilder_check_box.setText("Ausbildermodus ist ausgeschaltet")
+                grid.addWidget(self.ausbilder_check_box, row, 1, 1, 1)
             row += 1
         #global debug_mode
-        self.show_pass_btn.clicked.connect(self.change_pass_visible)
-        self.check_box.clicked.connect(self.change_debug)
         self.btn_save = QPushButton("Speichern")
         self.btn_save.setIcon(QIcon("./assets/icons/inverted/save_inverted.png"))
+        self.show_pass_btn.clicked.connect(self.change_pass_visible)
+        self.check_box.clicked.connect(self.change_debug)
+        self.ausbilder_check_box.connect(self.change_ausbilder_modus)
         self.btn_save.clicked.connect(self.save_settings)
         grid.addWidget(self.btn_save, row, 0, 1, 2)
         self.refresh()
+
+    def change_ausbilder_modus(self):
+        if self.ausbilder_check_box.isChecked():
+            update_config_env("Ausbildermodus", "True")
+            self.ausbilder_check_box.setText("Ausbildermodus ist eingeschaltet")      
+            ausbilder_modus = True   
+            print("Ausbildermodus changed to True")
+        else:
+            update_config_env("Ausbildermodus", "False")
+            self.ausbilder_check_box.setText("Ausbildermodus ist ausgeschaltet")
+            ausbilder_modus = False
+            print("Ausbildermodus changed to False")
 
     def change_pass_visible(self):
         """Toggle password visibility."""
