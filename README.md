@@ -1,3 +1,7 @@
+![GitHub All Releases](https://img.shields.io/github/downloads/baulum/WebLook/total?style=flat-square)
+
+
+
 **Benutzerhandbuch – WebLook: Ihr WebUntis-zu-Outlook-Tool**
 
 Herzlich willkommen zu **WebLook – Number one WebUntis to Outlook Tool!** Mit diesem Programm können Sie Ihren Stundenplan aus WebUntis abrufen und automatisch in Outlook (oder andere Kalender-Programme) integrieren sowie optional eine Abwesenheitsnotiz (Out-of-Office) erstellen lassen. Im Folgenden finden Sie eine kurze Anleitung zur Verwendung.

@@ -67,6 +67,7 @@ def update_config_env(key, value, file_path='config.env'):
     with open(file_path, 'w') as file:
         for k, v in config.items():
             file.write(f"{k}={v}\n")
+    
 
 def generate_sleek_session():
     current_time = datetime.datetime.utcnow().isoformat() + "Z"
@@ -1164,6 +1165,7 @@ class SettingsPage(QWidget):
                 if val.lower() == "true":
                     
                     self.ausbilder_check_box.setChecked(True)
+                    
                     self.ausbilder_check_box.setText("Ausbildermodus ist eingeschaltet")
                 else:
                         
@@ -1186,14 +1188,16 @@ class SettingsPage(QWidget):
             update_config_env("Ausbildermodus", "True")
             self.ausbilder_check_box.setText("Ausbildermodus ist eingeschaltet")    
  
-            ausbilder_modus = True   
-            print("Ausbildermodus changed to True")
+            ausbilder_modus = True
+            if debug_mode:   
+                print("Ausbildermodus changed to True")
             self.refresh()
         else:
             update_config_env("Ausbildermodus", "False")
             self.ausbilder_check_box.setText("Ausbildermodus ist ausgeschaltet")
             ausbilder_modus = False
-            print("Ausbildermodus changed to False")
+            if debug_mode: 
+                print("Ausbildermodus changed to False")
             self.refresh()
 
     def change_pass_visible(self):
@@ -1209,6 +1213,7 @@ class SettingsPage(QWidget):
             print("Password visibility changed")
 
     def change_debug(self, checked):
+        global debug_mode
         if self.check_box.isChecked():
             update_config_env("Debugging", "True")
             self.check_box.setText("Debugging ist eingeschaltet")      
@@ -1219,6 +1224,7 @@ class SettingsPage(QWidget):
             self.check_box.setText("Debugging ist ausgeschaltet")
             debug_mode = False
             print("Debugging changed to False")
+        self.refresh()
 
     def getFolder(self):
         save_file_path = str(QFileDialog.getExistingDirectory(None, "Ordner auswählen", directory=self.config_data["Dateipfad"]))
@@ -1243,7 +1249,7 @@ class SettingsPage(QWidget):
             if key == "Passwort":
                 new_val = self.password_edit.text()
             update_config_env(key, new_val)
-            read_config_env(file_path="./config.env")
+            #read_config_env(file_path="./config.env")
             #if debug_mode:
             #print(key + ": " + new_val)
         QMessageBox.information(self, "Einstellungen", "Die Einstellungen wurden erfolgreich gespeichert!")
@@ -1254,8 +1260,8 @@ class FetchTimetablePage(QWidget):
     def __init__(self, config_data, parent=None):
         super().__init__(parent)
         self.config_data = config_data
-        ausbilder_modus = self.config_data["Ausbildermodus"]
-        print(ausbilder_modus)
+        #ausbilder_modus = self.config_data["Ausbildermodus"]
+        #print(ausbilder_modus)
         layout = QVBoxLayout(self)
         title = QLabel("Stundenplan abrufen")
         font = QFont()
@@ -1397,273 +1403,6 @@ class FetchTimetablePage(QWidget):
     def refresh(self):
         self.config_data = read_config_env()
 
-    # def run_fetch(self):
-    #     self.refresh()
-    #     self.debug_log("Starte Stundenplan-Abruf...")
-    #     global debug_mode
-    #     debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
-    #     if debug_mode:
-    #         print("Der Debugging Modus ist eingeschaltet.")
-
-    #     # 1) Basic config
-    #     name = self.config_data.get("Name", "None")
-    #     email = self.config_data.get("Email", "None")
-    #     username = self.config_data.get("Username", "")
-    #     password = self.config_data.get("Passwort", "")
-    #     betrieb = self.config_data.get("Betrieb", "None")
-
-    #     if name in ["None", ""] or email in ["None", ""] or betrieb in ["None", ""]:
-    #         QMessageBox.warning(self, "Fehlende Angaben", "Bitte Name, Email und Betrieb in Settings eintragen.")
-    #         return
-
-    #     week_count = self.weeks_spin.value()
-
-    #     # 2) Check schools
-    #     if not hasattr(self, 'found_schools') or len(self.found_schools) == 0:
-    #         QMessageBox.information(self, "Keine Schule ausgewählt", "Bitte zuerst auf 'Schulen laden' klicken und eine Schule auswählen.")
-    #         return
-    #     selected_index = self.schools_combo.currentIndex()
-    #     if selected_index < 0:
-    #         QMessageBox.warning(self, "Keine Schule", "Bitte wählen Sie eine Schule aus der Liste.")
-    #         return
-
-    #     school = self.found_schools[selected_index]
-        
-    #     self.debug_log(f"Ausgewählte Schule: {school['displayName']}")
-
-    #     # 3) Class short name
-    #     if self.use_defaults:
-    #         class_short = (
-    #             self.class_edit.text().strip()
-    #             if self.class_edit.text().strip() != self.config_data.get("Klasse", "")
-    #             else self.config_data.get("Klasse", "")
-    #         )
-    #         if not class_short or class_short == "None":
-    #             QMessageBox.warning(self, "Klasse fehlt", "Klasse ist nicht gesetzt oder leer.")
-    #             return
-    #     else:
-    #         class_short = self.class_edit.text().strip()
-    #         if not class_short:
-    #             QMessageBox.warning(self, "Klasse fehlt", "Bitte einen Klassennamen (Kurzname) eingeben.")
-    #             return
-
-    #     # We'll create a fresh session and do the form-based login
-    #     session = requests.Session()
-
-    #     # Step 1: initial GET
-    #     init_url = f"https://{school['server']}/WebUntis/?school={school['loginSchool']}"
-    #     r1 = session.get(init_url)
-    #     if debug_mode:
-    #         self.debug_log(f"Initial GET status: {r1.status_code} {session.cookies.get_dict()}")
-
-    #     # with open("init_url_get.txt", "w+", encoding="utf8") as file:
-    #     #     file.write(r1.text)
-
-    #     jsession_id = session.cookies.get("JSESSIONID")
-
-    #     trace_id = session.cookies.get("traceId")
-
-    #     tenant_id = session.cookies.get("Tenant-Id", school["tenantId"])
-
-    #     xcrsf_token = get_x_crsf_token(school["server"], school["loginSchool"], school, jsession_id, trace_id, debug_mode=debug_mode)
-
-
-    #     # Step 2: j_spring_security_check
-    #     post_url = f"https://{school['server']}/WebUntis/j_spring_security_check"
-    #     login_params = {
-    #         "school": school["loginSchool"],
-    #         "j_username": username,
-    #         "j_password": password,
-    #         "token": ""
-    #     }
-
-    #     headers = get_headers(tenant_id=tenant_id, schoolname=school["loginSchool"], server=school["server"], login_name="",jsession_id=jsession_id, trace_id=trace_id,xcsrf_token=xcrsf_token ,method="get_login_headers")
-
-    #     r2 = session.post(post_url, params=login_params, headers=headers)
-    #     if debug_mode:
-    #         self.debug_log(f"Login POST status: {r2.status_code} {session.cookies.get_dict()}")
-    #     data = r2.json()
-    #     if debug_mode:
-    #         print(data)
-        
-
-    #     error_msg = data.get('loginError')
-
-        
-        
-
-    #     if "loginError" in data:
-    #         if debug_mode:
-    #             print("Login Error: " + error_msg)
-    #         QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\nZugangsdaten überprüfen! Versuche Öffentlichen Login!")
-    #         try_public_login = True
-    #         #return
-    #     else:
-    #         try_public_login = False
-        
-    #     # Extract the new cookies from the session
-            
-    #     new_jsession_id = session.cookies.get("JSESSIONID")
-    #     new_trace_id    = session.cookies.get("traceId")
-    #     # Some instances also have a 'Tenant-Id' or 'schoolname' cookie; we can fetch them similarly if needed
-    #     new_tenant_id   = session.cookies.get("Tenant-Id", school["tenantId"])  # fallback to old
-        
-    #     #print("Login text snippet: " + r2.text[:300])
-
-    #     if r2.status_code != 200:
-    #         QMessageBox.critical(self, "Fehler", f"Login fehlgeschlagen (Status {r2.status_code}).\n. ")
-    #         #return
-
-    #     #Get bearer token for student information
-    #     bearer_url = f'https://{school["server"]}/WebUntis/api/token/new'
-    #     r3 = session.get(bearer_url, headers=headers)
-    #     bearer_token = r3.text
-
-    #     #Get student information with bearer
-    #     student_info_url = f'https://{school["server"]}/WebUntis/api/rest/view/v1/app/data'
-
-    #     student_headers = headers | {"Authorization": f"Bearer {bearer_token}"}
-    #     if debug_mode:
-    #         print(f"StudentHeaders: {student_headers}")
-
-    #     r4 = session.get(student_info_url, headers=student_headers)
-    #     student_info = r4.json()
-    #     Student_name = student_info["user"]["person"]["displayName"]
-    #     student_id = student_info["user"]["person"]["id"]
-    #     if debug_mode:
-    #         #print(f"Student Info: {student_info}")
-    #         print(f"Student Name: {Student_name}")
-    #         print(f"Student ID: {student_id}")
-
-    #     class_list, error_msg = get_classes(
-    #         server=school["server"],
-    #         school={
-    #             **school,  # same dict, but we can override if needed
-    #             "tenantId": new_tenant_id  # updated if your server sets it differently
-    #         },
-    #         jsession_id=new_jsession_id,
-    #         trace_id=new_trace_id,
-    #         debug_mode=debug_mode
-    #     )
-    #     get_classes_forbidden=False
-
-    #     class_id = ""
-        
-    #         #self.debug_log(error_msg["errorMessage"])
-    #     if error_msg:
-    #         if debug_mode:
-    #             print(error_msg["errorCode"])
-    #             print(error_msg)
-    #         if not try_public_login:
-    #             if debug_mode:
-    #                 self.debug_log(f'Fehler bei get_classes: {error_msg["errorMessage"]}')
-    #             if error_msg["errorCode"] == "FORBIDDEN":
-    #                 get_classes_forbidden = True
-    #             if not get_classes_forbidden:  
-    #                 return
-    #         else:
-    #             QMessageBox.critical(self, "Öffentlicher Login", "Öffentlicher Login kann nicht verwendet werden. Bitte überprüfen Sie Ihre Zugangsdaten!")
-    #             return
-    #     if not get_classes_forbidden:
-    #         matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
-    #         if not matching_class:
-    #             self.debug_log(f"Klasse '{class_short}' nicht gefunden.")
-    #             #return
-    #     if not get_classes_forbidden:
-    #         class_id = matching_class["id"]
-    #         self.debug_log(f"Klasse {matching_class['displayName']} (ID={class_id}) wird geladen...")
-
-    #    #Header updaten
-    #     final_headers = get_headers(
-    #         tenant_id=new_tenant_id,
-    #         schoolname=school["loginName"],
-    #         server=school["server"],
-    #         login_name=school["loginSchool"],
-    #         jsession_id=new_jsession_id,
-    #         trace_id=new_trace_id,
-    #         method="get_headers"
-    #     )
-    #     # class_id = None
-    #     # student_id = None
-
-    #     if not class_id or class_id == "":
-    #     # Daten der nächsten Wochen holen
-    #         all_days = fetch_data_for_next_weeks(
-    #             school={
-    #                 **school,  # pass updated if needed
-    #                 "tenantId": new_tenant_id
-    #             },
-    #             week_count=week_count,
-    #             headers=final_headers,
-    #             debug_mode=debug_mode,
-    #             debug_log_func=self.debug_log,
-    #             student_id=student_id
-    #         )
-    #     if not student_id or student_id == "":
-    #     # Daten der nächsten Wochen holen
-    #         all_days = fetch_data_for_next_weeks(
-    #             school={
-    #                 **school,  # pass updated if needed
-    #                 "tenantId": new_tenant_id
-    #             },
-    #             class_id=class_id,
-    #             week_count=week_count,
-    #             headers=final_headers,
-    #             debug_mode=debug_mode,
-    #             debug_log_func=self.debug_log,
-    #         )
-    #     if not all_days:
-    #         self.debug_log("Keine Stunden gefunden.")
-    #         return
-
-    #     # 7) ICS generieren
-    #     global create_oof
-
-    #     if self.create_oof_box.isChecked():
-
-    #         create_oof = True
-    #     else:
-    #         create_oof = False
-
-    #     ics_path = create_ics_file_for_week(
-    #         school_days_subjects_teachers=all_days,
-    #         schoolname=school["loginName"],
-    #         output_dir=self.config_data.get("Dateipfad"),
-    #         school_data=school,
-    #         name=name,
-    #         betrieb=betrieb,
-    #         email=email,
-    #         debug_log_func=self.debug_log,
-    #         create_oof=create_oof
-    #     )
-    #     if ics_path:
-    #         ret = QMessageBox.question(self, "Öffnen?", "Soll die .ics-Datei in Ihrem Kalender geöffnet werden?", QMessageBox.Yes | QMessageBox.No)
-    #         if ret == QMessageBox.Yes:
-    #             open_ics_with_default_app(ics_path)
-
-    #     # 8) Debug build stuff
-    #     if debug_mode:
-    #         self.debug_log(f'loginName={school["loginName"]}')
-    #         ret = QMessageBox.question(self, "Builden?","Soll diese Version gebuildet werden?", QMessageBox.Yes | QMessageBox.No)
-    #         if ret == QMessageBox.Yes:
-    #             self.debug_log("Version wird gebaut...")
-    #             if os.path.exists("./dist/WebLook.exe"):
-    #                 os.remove("./dist/WebLook.exe")
-
-    #             script_directory = os.path.dirname(os.path.abspath(sys.argv[0])) 
-    #             icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
-    #             os.system(f'pyinstaller main.py --onefile --name WebLook --icon "{icon_path}"')
-    #             if not os.path.exists("./dist/WebLook.exe"):
-                    
-    #                 print("Build failed.")
-    #             else:
-    #                 assets_path = os.path.join(script_directory, "assets")
-    #                 build_assets_path = os.path.join(script_directory, "dist", "assets")
-    #                 if not os.path.exists(build_assets_path):
-    #                     os.makedirs(build_assets_path)
-    #                     os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s')
-    #                 print("Build successful.")
-
 
 
     def run_fetch(self):
@@ -1671,12 +1410,15 @@ class FetchTimetablePage(QWidget):
         Main function to fetch schedule data, perform authentication, and generate ICS files.
         """
         try:
+            global debug_mode
             ausbilder_modus = (self.config_data.get("Ausbildermodus", "False").lower() == "true")
+            debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+            print("DebugMode: "+ str(debug_mode))
             self.refresh()
             self.debug_log("Starte Stundenplan-Abruf...")
 
             # Debug mode check
-            debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+            
             if debug_mode:
                 print("Debugging-Modus aktiviert.")
 
@@ -1858,7 +1600,7 @@ class FetchTimetablePage(QWidget):
                     icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
                     
                     # Execute PyInstaller to build the executable
-                    os.system(f'pyinstaller main.py --onefile --name WebLook --icon "{icon_path}"')
+                    os.system(f'pyinstaller main.py --onefile --hidden-import=holidays.countries --name WebLook --icon "{icon_path}"')
                     
                     if not os.path.exists("./dist/WebLook.exe"):
                         print("Build failed.")
