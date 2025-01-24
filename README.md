@@ -48,16 +48,16 @@ Dort finden Sie folgende Felder:
    *Die Klassenbezeichnung, z. B. „10A“. (Vermeide „10 A“)*
 
 8. **Schulnummer**  
-   *Die Index-Nummer der Schule (erscheint, wenn mehrere Schulen verfügbar sind).*
+   *Die Index-Nummer der Schule (erscheint, wenn man Schulen lädt) (z. B. „**#1** – Staatl. Berufsschule I …“).*
 
-9. **Wochen**  
+10. **Wochen**  
    *Anzahl der Wochen, für die der Stundenplan abgefragt werden soll (z. B. 4).*
 
-10. **Dateipfad**  
+11. **Dateipfad**  
    *Datei- bzw. Ordnerpfad, wo die erzeugte Kalenderdatei (.ics Datei) gespeichert wird.*  
    *Sie können den Pfad über das kleine Dateisymbol ändern.*
 
-11. **Debugging**  
+12. **Debugging**  
    *Wenn aktiviert, zeigt das Programm detailliertere Protokollausgaben an.*  
    *Diese Option ist für Entwickler nützlich.*
 
