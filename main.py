@@ -24,6 +24,22 @@ from PyQt5.QtWidgets import (
 # (Modified to remove console input, replaced with PyQt usage)
 # -----------------------------
 ausbilder_modus = False
+last_created_ics = None
+
+
+def write_log(log_text, path="logs.log"):
+    """
+    Schreibt den übergebenen Text als Log in eine Datei.
+    
+    :param log_text: Der zu protokollierende Text.
+    :param path: Pfad zur Log-Datei (Standard: logs.log).
+    """
+    zeitstempel = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    eintrag = f"[{zeitstempel}] {log_text}\n"
+    
+    with open(path, "a+", encoding="utf-8") as datei:
+        datei.write(eintrag)
+
 def read_config_env(file_path='config.env'):
     config = {}
     script_directory = os.path.dirname(os.path.abspath(sys.argv[0])) 
@@ -57,7 +73,7 @@ def read_config_env(file_path='config.env'):
                 file.write(f"{key}={value}\n")
         config = default_settings.copy()
     except Exception as e:
-        print(f"An error occurred reading config.env: {e}")
+        write_log(f"An error occurred reading config.env: {e}")
         
     return config
 
@@ -93,10 +109,10 @@ def get_cookies(server, loginName, debug_mode=False):
         jsessionid = cookies.get('JSESSIONID')
         traceid = cookies.get('traceId')
         if debug_mode:
-            print("Cookies:", cookies)
+            write_log(f"Cookies: {cookies}")
         return jsessionid, traceid
     except Exception as e:
-        print(f"Error getting cookies: {e}")
+        write_log(f"Error getting cookies: {e}")
         return None, None
 
 def get_headers(tenant_id, schoolname, server, login_name, jsession_id, trace_id, method, xcsrf_token=None):
@@ -175,14 +191,13 @@ def get_headers(tenant_id, schoolname, server, login_name, jsession_id, trace_id
         return headers
 
     elif method == 'get_x_csrf_headers':
-        sleek_sess = generate_sleek_session()
         headers = {
             'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'accept-encoding': 'gzip, deflate, br, zstd',
             'accept-language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
             'priority': 'u=1, i',
             'referer': f'https://{server}/WebUntis',
-            'cookie': f'JSESSIONID={jsession_id}; schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; traceId={trace_id}; _sleek_session={sleek_sess}',
+            'cookie': f'JSESSIONID={jsession_id}; schoolname="_{schoolname}"; Tenant-Id="{tenant_id}"; traceId={trace_id}; _sleek_session={sleek_session}',
             'referer': 'https://webuntis.com/',
             'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
             'sec-ch-ua-mobile': '?0',
@@ -223,12 +238,12 @@ def get_x_crsf_token(server, loginName, school, jsession_id, trace_id, debug_mod
         if match:
             csrf_token = match.group(1)
             if debug_mode:
-                print(f"CSRF Token: {csrf_token}")
+                write_log(f"CSRF Token: {csrf_token}")
             return csrf_token
         else:
-            print("CSRF Token not found (possibly not required).")
+            write_log("CSRF Token not found (possibly not required).")
     else:
-        print(f"Failed to fetch login page, status code: {response.status_code}")
+        write_log(f"Failed to fetch login page, status code: {response.status_code}")
     return None
 
 def get_start_of_week(date_str):
@@ -244,10 +259,10 @@ def fetch_timetable_data(url, headers):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        print(f"Fehler bei der Anfrage: {e}")
+        write_log(f"Fehler bei der Anfrage: {e}")
         return None
     except ValueError as e:
-        print(f"Fehler beim Parsen von JSON: {e}")
+        write_log(f"Fehler beim Parsen von JSON: {e}")
         return None
 
 
@@ -274,7 +289,7 @@ def get_school_days_subjects_teachers(json_data, debug_mode=False):
     except KeyError:
         if debug_mode:
             error_message = json_data.get("data", {}).get("error", {}).get("data", {}).get("messageKey", "Unknown error")
-            print(f"Fehler: {error_message}")
+            write_log(f"Fehler: {error_message}")
         return []
 
     # Create a lookup for element IDs to their names (like teachers or subjects)
@@ -295,9 +310,23 @@ def get_school_days_subjects_teachers(json_data, debug_mode=False):
             lesson_code = period.get('lessonCode', '')
             teacher_ids = [elem['id'] for elem in period['elements'] if elem['type'] == 5]
             subject_ids = [elem['id'] for elem in period['elements'] if elem['type'] == 3]
+            # Lookup teacher and subject names using studentGroup
 
             teacher_names = [element_lookup[tid] for tid in teacher_ids if tid in element_lookup]
             subject_names = [element_lookup[sid] for sid in subject_ids if sid in element_lookup]
+
+
+            try:
+                parts = period["studentGroup"].split('_')
+                if not teacher_names:
+                    teacher_names = [parts[-1]]
+                elif not subject_names:
+                    subject_names = [parts[0]]
+            except Exception as e:
+                teacher_names = ["Unbekannt"]
+                if debug_mode:
+                    write_log(f"Error parsing studentGroup: {e}")
+            
 
             cell_state = period.get("cellState", '')
             is_exam = (cell_state == "EXAM")
@@ -310,8 +339,9 @@ def get_school_days_subjects_teachers(json_data, debug_mode=False):
             end_hour = end_time // 100
             end_minute = end_time % 100
 
-            if debug_mode:
-                print(f"Processed: Subjects={subject_names}, Teachers={teacher_names}, cellState={cell_state}")
+            # if debug_mode:
+            #     (f"Processed: Subjects={subject_names}, Teachers={teacher_names}, cellState={cell_state}")
+
 
             school_days_subjects_teachers.append({
                 "lesson_date": lesson_date,
@@ -431,7 +461,9 @@ def create_ics_file_for_week(
     name="",
     betrieb="",
     email="",
-    debug_log_func=print,
+    student_name_path="",
+    student_name="",
+    debug_log_func=write_log,
     create_oof=False,
     ausbilder_modus=False,
     oof_custom_text="",  # Editable custom text for OOF messages
@@ -555,11 +587,11 @@ def create_ics_file_for_week(
     #         "STATUS:CONFIRMED",
     #         "END:VEVENT"
     #     ])
-    print("ausbildermodus:" + str(ausbilder_modus))
+    #print("ausbildermodus:" + str(ausbilder_modus))
     if not ausbilder_modus:
         for lesson in sorted_lessons:
-            if debug_mode:
-                print(lesson)
+            # if debug_mode:
+            #     print(lesson)
             event_start_dt = datetime.datetime.combine(
                 lesson["lesson_date"],
                 lesson["start_time"]
@@ -633,18 +665,29 @@ def create_ics_file_for_week(
             if not ausbilder_modus:
                 oof_description = (
                     "Sehr geehrte Damen und Herren,\\n\\n"
-                    f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str} "
+                    f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str}"
                     "wieder erreichen.\\n\\n"
                     f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
+                )
+                print_description = (
+                    "\nSehr geehrte Damen und Herren,\n\n"
+                    f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str}"
+                    "wieder erreichen.\n\n"
+                    f"Viele Grüße,\n\n{name}\n{betrieb}\n\n{email}\n\n"
                 )
             else:
                 oof_description = (
                     "Sehr geehrte Damen und Herren,\\n\\n"
-                    f"Der Azubi ({name}) ist an der {display_name} ({address})! "
+                    f"Der Azubi ({student_name}) ist zur Zeit an der {display_name}! "
                     f"Er/Sie ist ab dem {next_workday_str} wieder erreichbar.\\n\\n"
                     f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
                 )
-
+                print_description = (
+                    "\nSehr geehrte Damen und Herren,\n\n"
+                    f"Der Azubi ({student_name}) ist zur Zeit an der {display_name}! "
+                    f"Er/Sie ist ab dem {next_workday_str} wieder erreichbar.\n\n"
+                    f"Viele Grüße,\n\n{name}\n{betrieb}\n\n{email}\n\n"
+                )
             # Define the OOF event's start and end dates (inclusive)
             dtstart_oof = block_earliest.strftime("%Y%m%d")
             dtend_oof = (block_latest + datetime.timedelta(days=1)).strftime("%Y%m%d")
@@ -678,7 +721,7 @@ def create_ics_file_for_week(
                     f"DTEND;VALUE=DATE:{dtend_oof}",
                     f"DTSTART;VALUE=DATE:{dtstart_oof}",
                     f"LOCATION:",
-                    f"SUMMARY;LANGUAGE=de: Azubi {name} - {display_name}",
+                    f"SUMMARY;LANGUAGE=de: Azubi {student_name} - {display_name}",
                     "TRANSP:OPAQUE",
                     "STATUS:CONFIRMED",
                     "X-MICROSOFT-CDO-BUSYSTATUS:FREE",
@@ -688,19 +731,21 @@ def create_ics_file_for_week(
                     "X-MS-OLK-CONFTYPE:0",
                     "END:VEVENT"
                 ])
-
             # Debug information
-            debug_log_func(
-                f"OOF-Block: {block_earliest} → {block_latest} | "
-                f"Nächster Arbeitstag: {next_workday_str}"
-            )
+            # debug_log_func(
+            #     f"OOF-Block: {block_earliest} → {block_latest} | "
+            #     f"Nächster Arbeitstag: {next_workday_str}"
+            # )
+            # if debug_mode:
+            #     debug_log_func(
+            #         f"\nOOF-Notiz: {formatted_oof_description}"
+            #     )
             if debug_mode:
                 debug_log_func(
-                    f"\nOOF-Notiz: {oof_description}"
+                    f"<p>OOF-Block: {block_earliest} → {block_latest} | "
+                    f"Nächster Arbeitstag: {next_workday_str}</p>"
                 )
-    # Parse the string into a datetime object
-    #print(type(datetime))
-    # Parse the string into a datetime object
+                debug_log_func(f"{print_description}")
     
     creation_date_dt = datetime.datetime.strptime(str(creation_date), "%Y%m%dT%H%M%S")
 
@@ -709,9 +754,9 @@ def create_ics_file_for_week(
     # Close the ICS calendar
     ics_content.append("END:VCALENDAR")
     if not ausbilder_modus:
-        filename = f"{schoolname.lower()}_stundenplan_woche_{formatted_creation_date}_{block_latest}.ics"
+        filename = f"{name}_{schoolname.lower()}_stundenplan_woche_{formatted_creation_date}_{block_latest}.ics"
     else:
-        filename = f"{name}_{schoolname.lower()}_azubi__stundenplan_woche_{formatted_creation_date}_{block_latest}.ics"
+        filename = f"{student_name_path}_{schoolname.lower()}_azubi_abwesenheiten_der_wochen_{formatted_creation_date}-{block_latest}.ics"
     file_path = os.path.join(output_dir, filename)
 
     # Write the ICS content to the file
@@ -719,13 +764,17 @@ def create_ics_file_for_week(
         ics_file.write("\n".join(ics_content))
 
     debug_log_func(f"ICS-Datei erstellt: {file_path}")
+
+    global last_created_ics
+    last_created_ics = file_path
+
     return file_path
 
 
 
 def open_ics_with_default_app(ics_file_path):
     if not os.path.exists(ics_file_path):
-        print(f"Die Datei {ics_file_path} existiert nicht.")
+        QMessageBox.warning(f"Die Datei {ics_file_path} existiert nicht.")
         return
     try:
         if os.name == "nt":
@@ -733,7 +782,7 @@ def open_ics_with_default_app(ics_file_path):
         else:
             subprocess.run(["open", ics_file_path])
     except Exception as e:
-        print(f"Ein Fehler ist aufgetreten: {e}")
+        write_log(f"Ein Fehler ist aufgetreten: {e}")
 
 
 def get_schools(city, debug_mode=False):
@@ -772,7 +821,7 @@ def get_schools(city, debug_mode=False):
     school_data = []
     for s in schools:
         if debug_mode:
-            print("Found school:", s)
+            write_log(f"Found school: {s}")
         login_name = s["loginName"].lower()
         encoded_bytes = base64.b64encode(login_name.encode('utf-8'))
         login_base64 = encoded_bytes.decode('utf-8')
@@ -787,39 +836,87 @@ def get_schools(city, debug_mode=False):
         })
     return school_data
 
-def get_classes(server, school, jsession_id, trace_id, debug_mode=False):
-    """
-    Same as before: gets a list of classes from the /api/rest/view/v1/timetable/filter endpoint.
-    We will call it after we've done the new form-based login, so we have a valid JSESSIONID + traceId.
-    """
-    my_api_url = ""
+# def get_classes(server, school, jsession_id, trace_id, debug_mode=False):
+#     """
+#     Same as before: gets a list of classes from the /api/rest/view/v1/timetable/filter endpoint.
+#     We will call it after we've done the new form-based login, so we have a valid JSESSIONID + traceId.
+#     """
+#     my_api_url = ""
+#     api_url = f"https://{server}/WebUntis/api/rest/view/v1/timetable/filter?resourceType=CLASS&timetableType=STANDARD"
+#     response = requests.get(
+#         api_url,
+#         headers=get_headers(
+#             tenant_id=school["tenantId"],
+#             schoolname=school["loginName"],
+#             server=school["server"],
+#             login_name=school["loginSchool"],
+#             jsession_id=jsession_id,
+#             trace_id=trace_id,
+#             method="get_class_id_headers"
+#         )
+#     )
+#     if response.status_code != 200:
+#         return None, response.json()
+#     data = response.json()
+#     classes = data["classes"]
+#     class_data = []
+#     for c in classes:
+#         cinfo = c["class"]
+#         class_data.append({
+#             "id": cinfo["id"],
+#             "shortName": cinfo["shortName"],
+#             "longName": cinfo["longName"],
+#             "displayName": cinfo["displayName"]
+#         })
+#     if debug_mode:
+#         print("Class data:", class_data)
+#     return class_data, None
+def get_classes(server, school, session, debug_mode=False):
     api_url = f"https://{server}/WebUntis/api/rest/view/v1/timetable/filter?resourceType=CLASS&timetableType=STANDARD"
-    response = requests.get(
-        api_url,
-        headers=get_headers(
-            tenant_id=school["tenantId"],
-            schoolname=school["loginName"],
-            server=school["server"],
-            login_name=school["loginSchool"],
-            jsession_id=jsession_id,
-            trace_id=trace_id,
-            method="get_class_id_headers"
-        )
+    if debug_mode:
+        write_log(f"Schoolname: " + school["loginName"])
+        write_log(f"login_name: " + school["loginSchool"])
+    headers = get_headers(
+        tenant_id=school["tenantId"],
+        schoolname=school["loginName"],
+        server=school["server"],
+        login_name=school["loginSchool"],
+        jsession_id=session.cookies.get("JSESSIONID"),
+        trace_id=session.cookies.get("TraceId"),
+        method="get_class_id_headers"
     )
-    if response.status_code != 200:
-        return None, response.json()
-    data = response.json()
-    classes = data["classes"]
-    class_data = []
-    for c in classes:
-        cinfo = c["class"]
-        class_data.append({
-            "id": cinfo["id"],
-            "shortName": cinfo["shortName"],
-            "longName": cinfo["longName"],
-            "displayName": cinfo["displayName"]
-        })
-    return class_data, None
+
+    try:
+        response = session.get(api_url, headers=headers)
+        if debug_mode:
+            write_log(f"get_classes response: {response.status_code}, {response.text}")
+
+        if response.status_code != 200:
+            return None, f"HTTP {response.status_code}: {response.json().get('errorMessage', 'Unknown error')}"
+
+        data = response.json()
+        classes = data.get("classes", [])
+        class_data = [
+            {
+                "id": c["class"]["id"],
+                "shortName": c["class"]["shortName"],
+                "longName": c["class"]["longName"],
+                "displayName": c["class"]["displayName"]
+            }
+            for c in classes
+        ]
+
+        if debug_mode:
+            write_log("Class data: {class_data}")
+
+        return class_data, None
+
+    except Exception as e:
+        if debug_mode:
+            write_log(f"Error in get_classes: {e}")
+        return None, str(e)
+
+
 
 def fetch_data_for_next_weeks(
     school,
@@ -827,7 +924,7 @@ def fetch_data_for_next_weeks(
     headers,
     class_id=None,
     debug_mode=False,
-    debug_log_func=print,
+    debug_log_func=write_log,
     student_id=None,
 ):
     """
@@ -843,7 +940,7 @@ def fetch_data_for_next_weeks(
 
     if debug_mode:
         debug_log_func(f"Weeks to fetch: {weeks_to_fetch}")
-
+        write_log(f"ClassID: {class_id}")
     all_school_days = []
     server = school["server"]
 
@@ -852,19 +949,13 @@ def fetch_data_for_next_weeks(
             f"https://{server}/WebUntis/api/public/timetable/weekly/data"
             f"?elementType=1&elementId={class_id}&date={week_start}&formatId=2&filter.departmentId=-1"
         )
-        if student_id:
+        #
+        if student_id is not None:
             api_url = f"https://{server}/WebUntis/api/public/timetable/weekly/data?elementType=5&elementId={student_id}&date={week_start}&formatId=10"
-            if debug_mode:
-                print(f"""
-
-                {api_url}
-
-
-                """)
-            
             #api_url = f"https://{server}/WebUntis/api/public/timetable/weekly/data?elementType=5&elementId={student_id}&date={week_start}&formatId=10&filter.departmentId=-1"
         if debug_mode:
             debug_log_func(f"Hole Daten für Woche: {week_start}")
+            write_log(f"Accessing Api-Endpoint: {api_url}")
         timetable_data = fetch_timetable_data(api_url, headers)
         if timetable_data:
             results = get_school_days_subjects_teachers(timetable_data, debug_mode)
@@ -905,8 +996,12 @@ class MainWindow(QMainWindow):
         # Create pages
         self.main_menu_page = MainMenuPage(self.config_data, self)
         self.fetch_page = FetchTimetablePage(self.config_data, self)
-        self.settings_page = SettingsPage(self.config_data, self)
         
+        #self.fetch_page.log_text.setVisible(True)
+        
+        
+        self.settings_page = SettingsPage(self.config_data, self)
+        self.stacked_widget.currentChanged.connect(self.on_page_switch)
         # Add pages to stacked widget
         self.stacked_widget.addWidget(self.main_menu_page)   # index 0
         self.stacked_widget.addWidget(self.settings_page)    # index 1
@@ -917,6 +1012,11 @@ class MainWindow(QMainWindow):
 
         # Apply a style sheet for a modern look
         self.setStyleSheet(self.load_stylesheet())
+
+    def on_page_switch(self, index):
+        """Refresh the fetch page when it becomes visible."""
+        if self.stacked_widget.currentWidget() == self.fetch_page:
+            self.fetch_page.refresh()
 
     def create_sidebar(self):
         """Create a vertical sidebar with nav buttons."""
@@ -949,11 +1049,14 @@ class MainWindow(QMainWindow):
         btn_settings = QPushButton("Einstellungen")
         btn_settings.setIcon(QIcon("./assets/icons/inverted/setting_inverted.png"))
         btn_settings.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
+
         layout.addWidget(btn_settings)
+       
 
         layout.addStretch()  # push everything up
 
         return frame
+
 
     def load_stylesheet(self):
         return """
@@ -1063,7 +1166,6 @@ class MainWindow(QMainWindow):
             selection-color: #fff;
         }
         """
-
 
 class MainMenuPage(QWidget):
     """Represents the main menu page."""
@@ -1191,14 +1293,14 @@ class SettingsPage(QWidget):
  
             ausbilder_modus = True
             if debug_mode:   
-                print("Ausbildermodus changed to True")
+                write_log("Ausbildermodus changed to True")
             self.refresh()
         else:
             update_config_env("Ausbildermodus", "False")
             self.ausbilder_check_box.setText("Ausbildermodus ist ausgeschaltet")
             ausbilder_modus = False
             if debug_mode: 
-                print("Ausbildermodus changed to False")
+                write_log("Ausbildermodus changed to False")
             self.refresh()
 
     def change_pass_visible(self):
@@ -1211,21 +1313,29 @@ class SettingsPage(QWidget):
             self.password_edit.setEchoMode(QLineEdit.Password)
             self.show_pass_btn.setIcon(QIcon("./assets/icons/inverted/show_inverted.png"))
         if debug_mode:
-            print("Password visibility changed")
+            write_log("Password visibility changed")
 
     def change_debug(self, checked):
         global debug_mode
         if self.check_box.isChecked():
             update_config_env("Debugging", "True")
             self.check_box.setText("Debugging ist eingeschaltet")      
-            debug_mode = True   
-            print("Debugging changed to True")
+            debug_mode = True  
+            write_log("Debugging changed to True")
         else:
             update_config_env("Debugging", "False")
             self.check_box.setText("Debugging ist ausgeschaltet")
-            debug_mode = False
-            print("Debugging changed to False")
+            debug_mode = False  
+            write_log("Debugging changed to False")
         self.refresh()
+        
+        # Check if the parent exists and has fetch_page
+        parent = self.parent()
+        if parent and hasattr(parent, 'fetch_page'):
+            parent.fetch_page.refresh()
+        # else:
+        #     print("Parent or fetch_page not found. Unable to refresh.")
+
 
     def getFolder(self):
         save_file_path = str(QFileDialog.getExistingDirectory(None, "Ordner auswählen", directory=self.config_data["Dateipfad"]))
@@ -1261,21 +1371,24 @@ class FetchTimetablePage(QWidget):
     def __init__(self, config_data, parent=None):
         super().__init__(parent)
         self.config_data = config_data
+        self.log_text_visible = False
         #ausbilder_modus = self.config_data["Ausbildermodus"]
         #print(ausbilder_modus)
-        layout = QVBoxLayout(self)
+        self.main_layout = QVBoxLayout(self)
         title = QLabel("Stundenplan abrufen")
         font = QFont()
         font.setPointSize(16)
         font.setBold(True)
         title.setFont(font)
-        layout.addWidget(title)
+        self.main_layout.addWidget(title)
 
+        # Debug Mode Configuration
+        self.debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
         # 1) Checkbox / Button to toggle defaults
         self.use_defaults = False
-        self.toggle_defaults_button = QPushButton("Nutze KEINE Defaults (klicken zum Umschalten)")
-        self.toggle_defaults_button.clicked.connect(self.toggle_defaults)
-        layout.addWidget(self.toggle_defaults_button)
+        self.toggle_defaults_button = QPushButton("Defaults herunterladen")
+        self.toggle_defaults_button.clicked.connect(self.fetch_defaults)
+        self.main_layout.addWidget(self.toggle_defaults_button)
 
         # 2) City input
         city_layout = QHBoxLayout()
@@ -1285,18 +1398,18 @@ class FetchTimetablePage(QWidget):
         self.city_edit.setToolTip("Wenn die Eingabe der Stadt zu Fehlern führt geben sie die Adresse der Schule ein(Ohne PLZ und Ort)")
         city_layout.addWidget(city_label)
         city_layout.addWidget(self.city_edit)
-        layout.addLayout(city_layout)
+        self.main_layout.addLayout(city_layout)
 
         # 3) "Load schools" button, plus combobox
         load_schools_layout = QHBoxLayout()
         self.load_schools_btn = QPushButton("Schulen laden")
         self.load_schools_btn.setToolTip("Lädt die Schulen in die Box rechts neben an. Bitte aus der Liste eine Schule auswählen")
-        self.load_schools_btn.clicked.connect(self.on_load_schools_clicked)
+        self.load_schools_btn.clicked.connect(lambda: self.on_load_schools_clicked(defaults=False))
         load_schools_layout.addWidget(self.load_schools_btn)
 
         self.schools_combo = QComboBox()
         load_schools_layout.addWidget(self.schools_combo)
-        layout.addLayout(load_schools_layout)
+        self.main_layout.addLayout(load_schools_layout)
 
         # 4) Class name
         class_layout = QHBoxLayout()
@@ -1304,7 +1417,7 @@ class FetchTimetablePage(QWidget):
         self.class_edit = QLineEdit()
         class_layout.addWidget(self.class_label)
         class_layout.addWidget(self.class_edit)
-        layout.addLayout(class_layout)
+        self.main_layout.addLayout(class_layout)
 
         # 5) Weeks
         weeks_layout = QHBoxLayout()
@@ -1314,7 +1427,7 @@ class FetchTimetablePage(QWidget):
         self.weeks_spin.setValue(1)
         weeks_layout.addWidget(weeks_label)
         weeks_layout.addWidget(self.weeks_spin)
-        layout.addLayout(weeks_layout)
+        self.main_layout.addLayout(weeks_layout)
 
         # 6) Out Of Office
         create_oof_layout = QHBoxLayout()
@@ -1323,45 +1436,81 @@ class FetchTimetablePage(QWidget):
         create_oof_label = QLabel("Out Of Office Notiz erstellen?: ")
         create_oof_layout.addWidget(create_oof_label)
         create_oof_layout.addWidget(self.create_oof_box)
-        layout.addLayout(create_oof_layout)
+        
+
+        # # 6) Fetch Button
+        # self.fetch_btn = QPushButton("Stundenplan abrufen!")
+        # self.fetch_btn.clicked.connect(self.run_fetch)
+        # layout.addWidget(self.fetch_btn)
 
         # 6) Fetch Button
+        fetch_button_layout = QHBoxLayout()
+
+        # Stundenplan abrufen Button
         self.fetch_btn = QPushButton("Stundenplan abrufen!")
         self.fetch_btn.clicked.connect(self.run_fetch)
-        layout.addWidget(self.fetch_btn)
+        fetch_button_layout.addWidget(self.fetch_btn)
 
-        # 7) Log text
+        # Letzte Datei öffnen Button
+        self.open_last_file_btn = QPushButton("Letzte Datei öffnen")
+        self.open_last_file_btn.setIcon(QIcon("./assets/icons/inverted/browse_inverted.png"))
+        self.open_last_file_btn.clicked.connect(self.open_last_created_file)
+        fetch_button_layout.addWidget(self.open_last_file_btn)
+
+        # Add the horizontal layout to the main layout
+        self.main_layout.addLayout(fetch_button_layout)
+
+        # 7) Log text. Display only when Dubigging is enabled
+        debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
+
+        
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        layout.addWidget(self.log_text)
+        self.main_layout.addWidget(self.log_text)
+        self.log_text.setVisible(False)
 
-        self.setLayout(layout)
+        
+        self.main_layout.addWidget(self.log_text)
+
+        self.setLayout(self.main_layout)
         self.refresh()
 
-    def toggle_defaults(self):
-        self.use_defaults = not self.use_defaults
-        if self.use_defaults:
-            self.refresh()
-            self.toggle_defaults_button.setText("Nutze DEFAULTS (klicken zum Umschalten)")
-            self.city_edit.setText(self.config_data.get("Stadt/Adresse", ""))
-            self.class_edit.setText(self.config_data.get("Klasse", ""))
-            self.weeks_spin.setValue(int(self.config_data.get("Wochen", "1")))
-            self.load_schools_btn.click()
-            #Added automatic loading of the timables
-            self.fetch_btn.click()
-        else:
-            self.refresh()
-            self.toggle_defaults_button.setText("Nutze KEINE Defaults (klicken zum Umschalten)")
-            self.city_edit.clear()
-            self.class_edit.clear()
-            self.weeks_spin.setValue(1)
-            self.schools_combo.clear()
+    def toggle_debug_log_visibility(self):
+        """Show or hide log_text based on debug_mode."""
+        self.log_text.setVisible(self.debug_mode)
 
-    def on_load_schools_clicked(self):
-        self.log_text.clear()
+    def open_last_created_file(self):
+        global last_created_ics
+        if last_created_ics and os.path.exists(last_created_ics):
+            open_ics_with_default_app(last_created_ics)
+        else:
+            QMessageBox.information(self, "Keine Datei", "Es wurde keine Datei gefunden oder die Datei existiert nicht.")
+
+    def fetch_defaults(self):
+        #Added automatic loading of the timables
+        self.refresh()
+        self.toggle_defaults_button.setText("Nutze DEFAULTS")
+        self.city_edit.setText(self.config_data.get("Stadt/Adresse", ""))
+        self.class_edit.setText(self.config_data.get("Klasse", ""))
+        self.weeks_spin.setValue(int(self.config_data.get("Wochen", "1")))
+        self.on_load_schools_clicked(defaults=True)
+        self.fetch_btn.click()
+        self.use_defaults = True
+        # if self.use_defaults:
+            
+        # else:
+        #     self.refresh()
+        #     self.toggle_defaults_button.setText("Nutze KEINE Defaults (klicken zum Umschalten)")
+        #     self.city_edit.clear()
+        #     self.class_edit.clear()
+        #     self.weeks_spin.setValue(1)
+        #     self.schools_combo.clear()
+
+    def on_load_schools_clicked(self, defaults):
+        #self.log_text.clear()
         debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
         
-        if self.use_defaults:
+        if defaults:
             city = self.config_data.get("Stadt/Adresse", "None")
             if not city or city == "None":
                 QMessageBox.warning(self, "Keine Default-Stadt", "Bitte Stadt/Adresse im config.env setzen oder Defaults deaktivieren.")
@@ -1390,8 +1539,9 @@ class FetchTimetablePage(QWidget):
             display = f"#{idx} – {school['displayName']} ({school['address']})"
             self.schools_combo.addItem(display, idx)
         
-        if self.use_defaults:
+        if defaults:
             schulnummer = int(self.config_data.get("Schulnummer", "0"))
+            self.debug_log(f"Schulnummer aus config.env gelesen: {schulnummer}")
             self.schools_combo.setCurrentIndex(schulnummer)
         if school_amount == 1:
             self.schools_combo.setCurrentIndex(0)  # Select first school if only one is found.
@@ -1403,8 +1553,18 @@ class FetchTimetablePage(QWidget):
 
     def refresh(self):
         self.config_data = read_config_env()
+        debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+        self.toggle_log_text(debug_mode)
 
-
+    def toggle_log_text(self, show):
+        """Show or hide the log_text textbox."""
+        self.log_text_visible = show
+        self.log_text.setVisible(show)
+    
+    def debug_log(self, msg):
+        """Log a debug message if debug_mode is enabled."""
+        if self.log_text_visible:
+            self.log_text.append(msg)
 
     def run_fetch(self):
         """
@@ -1414,14 +1574,14 @@ class FetchTimetablePage(QWidget):
             global debug_mode
             ausbilder_modus = (self.config_data.get("Ausbildermodus", "False").lower() == "true")
             debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
-            print("DebugMode: "+ str(debug_mode))
+            if debug_mode:
+                self.debug_log("DebugMode: " + str(debug_mode))
             self.refresh()
             self.debug_log("Starte Stundenplan-Abruf...")
 
             # Debug mode check
-            
             if debug_mode:
-                print("Debugging-Modus aktiviert.")
+                self.debug_log("Debugging-Modus aktiviert.")
 
             # Validate basic config
             name = self.config_data.get("Name", "").strip()
@@ -1457,6 +1617,9 @@ class FetchTimetablePage(QWidget):
 
             # Initialize session
             session = requests.Session()
+            student_info = None  # Initialize student_info as None to handle cases where login fails
+            class_id = None # Initialize class_id as None to handle cases where the login is working properly
+            student_id = None # Initialize student_id as None to handle cases where login fails
 
             # Step 1: Perform initial GET request
             init_url = f"https://{school['server']}/WebUntis/?school={school['loginSchool']}"
@@ -1467,11 +1630,11 @@ class FetchTimetablePage(QWidget):
             jsession_id = session.cookies.get("JSESSIONID")
             trace_id = session.cookies.get("traceId")
             tenant_id = session.cookies.get("Tenant-Id", school.get("tenantId", ""))
-
+            loginName=school["loginSchool"]
             # Fetch CSRF token
             xcrsf_token = get_x_crsf_token(
                 server=school["server"],
-                loginName=school["loginSchool"],
+                loginName=loginName,
                 school=school,
                 jsession_id=jsession_id,
                 trace_id=trace_id,
@@ -1488,8 +1651,8 @@ class FetchTimetablePage(QWidget):
             }
             headers = get_headers(
                 tenant_id=tenant_id,
-                schoolname=school["loginSchool"],
-                login_name=school["loginName"],
+                schoolname=school["loginName"],
+                login_name=school["loginSchool"],
                 server=school["server"],
                 jsession_id=jsession_id,
                 trace_id=trace_id,
@@ -1499,61 +1662,92 @@ class FetchTimetablePage(QWidget):
 
             r2 = session.post(post_url, params=login_params, headers=headers)
             if debug_mode:
-                self.debug_log(f"Login POST status: {r2.status_code}, Cookies: {session.cookies.get_dict()}")
+                self.debug_log(f"Login POST status: {r2.status_code}, Cookies: {session.cookies.get_dict()}, Data: {r2.json()}")
 
             # Handle login errors
             data = r2.json()
             if "loginError" in data:
                 error_msg = data.get("loginError", "Unbekannter Fehler")
-                self.debug_log(f"Login Fehler: {error_msg}")
-                QMessageBox.critical(self, "Login Fehler", "Login fehlgeschlagen. Zugangsdaten überprüfen.")
-                return
+                self.debug_log(f"Login Fehler: {error_msg}. Versuche öffentlichen Login.")
+                QMessageBox.critical(self, "Login Fehler", "Login fehlgeschlagen. Zugangsdaten überprüfen.\n Versuche öffentlichen Login!")
 
-            # Step 3: Fetch bearer token
-            bearer_url = f'https://{school["server"]}/WebUntis/api/token/new'
-            r3 = session.get(bearer_url, headers=headers)
-            bearer_token = r3.text.strip()
+                # Step 5: Fetch class list only after login failure
+                class_list, error_msg = get_classes(
+                    server=school["server"],
+                    school={**school, "tenantId": tenant_id},
+                    session=session,
+                    debug_mode=debug_mode
+                )
 
-            # Step 4: Fetch student information
-            student_info_url = f'https://{school["server"]}/WebUntis/api/rest/view/v1/app/data'
-            student_headers = headers | {"Authorization": f"Bearer {bearer_token}"}
-            r4 = session.get(student_info_url, headers=student_headers)
-            student_info = r4.json()
-            student_id = student_info["user"]["person"]["id"]
-            self.debug_log(f"Student Name: {student_info['user']['person']['displayName']}, ID: {student_id}")
+                if debug_mode:
+                    self.debug_log(f"Class list returned: {class_list}, Error: {error_msg}")
 
-            # Step 5: Fetch class list
-            class_list, error_msg = get_classes(
-                server=school["server"],
-                school={**school, "tenantId": tenant_id},
-                jsession_id=session.cookies.get("JSESSIONID"),
-                trace_id=session.cookies.get("traceId"),
-                debug_mode=debug_mode
-            )
-
-            if error_msg:
-                #if debug_mode:
-                if not error_msg["errorCode"] == "FORBIDDEN":
-                    self.debug_log(f"Fehler beim öffentlichen Klassenabruf: {error_msg}")
+                if error_msg:
+                    self.debug_log(f"Fehler beim Abrufen der Klassenliste: {error_msg}")
+                    QMessageBox.warning(self, "Fehler", f"Konnte keine Klassenliste abrufen: {error_msg}")
                     return
+
+                if not class_list:
+                    self.debug_log("Klassenliste ist leer.")
+                    QMessageBox.warning(self, "Fehler", "Es wurden keine Klassen gefunden.")
+                    return
+
+                # Find matching class
+                if debug_mode:
+                    self.debug_log(f"Looking for class_short='{class_short}' in class_list: {class_list}")
+                matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
+
+                if not matching_class:
+                    self.debug_log(f"Klasse '{class_short}' nicht in Klassenliste gefunden: {class_list}")
+                    QMessageBox.warning(self, "Fehler", f"Klasse '{class_short}' wurde nicht gefunden.")
+                    return
+
+                class_id = matching_class["id"]
+                if debug_mode:
+                    self.debug_log(f"ClassID: {class_id}")
+
+                # Validate class_id before fetching timetable
+                if not class_id:
+                    QMessageBox.warning(self, "Fehler", "Keine gültige Klassen-ID gefunden. Stundenplan kann nicht abgerufen werden.")
+                    return
+            else:
+                # Step 3: Fetch bearer token
+                bearer_url = f'https://{school["server"]}/WebUntis/api/token/new'
+                r3 = session.get(bearer_url, headers=headers)
+                bearer_token = r3.text.strip()
+
+                # Login succeeded, fetch student info
+                student_info_url = f'https://{school["server"]}/WebUntis/api/rest/view/v1/app/data'
+                student_headers = headers | {"Authorization": f"Bearer {bearer_token}"}
+                r4 = session.get(student_info_url, headers=student_headers)
+                try:
+                    student_info = r4.json()
+                    
+                    if debug_mode:    
+                        self.debug_log("StudentInfo: " + str(student_info)[:300])
+                    student_name = student_info['user']['person']['displayName']
+                    student_name_path = "_".join(student_name.split(" "))
+                    self.debug_log(f"Student Name: {student_info['user']['person']['displayName']}, ID: {student_info['user']['person']['id']}")
+                except Exception as e:
+                    self.debug_log(f"Fehler beim Abrufen der Studentendaten: {e}")
+                    student_info = None
+
+                # Determine class ID only if not already set
+                if student_info:
+                    student_id = student_info["user"]["person"]["id"]
                 else:
-                    self.debug_log(f"Starte privaten Klassenabruf")
+                    student_id = None
 
-                
-                class_list = []
+            # Step 6: Fetch timetable data (use class_id if student_id is not available)
+            if debug_mode:
 
-            # Find matching class
-            matching_class = next((c for c in class_list if c["shortName"] == class_short), None)
-            class_id = matching_class["id"] if matching_class else None
+                self.debug_log(f"StudentID: {student_id} ClassID: {class_id}")
 
-            if not class_id:
-                self.debug_log(f"Klasse '{class_short}' nicht gefunden. Es wird der Stundenplan des Schülers geladen.")
 
-            # Step 6: Fetch timetable data
             all_days = fetch_data_for_next_weeks(
                 school={**school, "tenantId": tenant_id},
                 class_id=class_id,
-                student_id=student_id if not class_id else None,  # Fallback to student ID
+                student_id=student_info["user"]["person"]["id"] if student_info and "user" in student_info else None,
                 week_count=week_count,
                 headers=headers,
                 debug_mode=debug_mode,
@@ -1563,7 +1757,7 @@ class FetchTimetablePage(QWidget):
             if not all_days:
                 self.debug_log("Keine Stunden gefunden.")
                 return
-        
+
             # Step 7: Generate ICS file
             ics_path = create_ics_file_for_week(
                 school_days_subjects_teachers=all_days,
@@ -1571,6 +1765,8 @@ class FetchTimetablePage(QWidget):
                 output_dir=self.config_data.get("Dateipfad", "./"),
                 school_data=school,
                 name=name,
+                student_name_path=student_name_path,
+                student_name=student_name,
                 betrieb=betrieb,
                 email=email,
                 ausbilder_modus=ausbilder_modus,
@@ -1579,13 +1775,11 @@ class FetchTimetablePage(QWidget):
             )
 
             if ics_path:
-                QMessageBox.information(self, "Erfolg", "ICS-Datei erfolgreich erstellt.")
-                ret = QMessageBox.question(self, "Öffnen?", "ICS-Datei öffnen?", QMessageBox.Yes | QMessageBox.No)
+                ret = QMessageBox.question(self, "Öffnen?", "ICS-Datei erfolgreich erstellt.\nICS-Datei öffnen?", QMessageBox.Yes | QMessageBox.No)
                 if ret == QMessageBox.Yes:
                     open_ics_with_default_app(ics_path)
 
             if debug_mode:
-                #self.debug_log(f'loginName={school["loginName"]}')
                 ret = QMessageBox.question(
                     self,
                     "Builden?",
@@ -1601,10 +1795,10 @@ class FetchTimetablePage(QWidget):
                     icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
                     
                     # Execute PyInstaller to build the executable
-                    os.system(f'pyinstaller main.py --onefile --hidden-import=holidays.countries --name WebLook --icon "{icon_path}"')
+                    os.system(f'pyinstaller main.py --onefile --noconsole --hidden-import=holidays.countries --name WebLook --icon "{icon_path}"')
                     
                     if not os.path.exists("./dist/WebLook.exe"):
-                        print("Build failed.")
+                        QMessageBox.critical(self, "Fehler","Build failed.")
                     else:
                         # Copy assets to the build directory
                         assets_path = os.path.join(script_directory, "assets")
@@ -1612,12 +1806,14 @@ class FetchTimetablePage(QWidget):
                         if not os.path.exists(build_assets_path):
                             os.makedirs(build_assets_path)
                         os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s')
-                        print("Build successful.")
-
+                        QMessageBox.information(self, "Erfolgreich", "Build successful.")
 
         except Exception as e:
             self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
             QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten. Siehe Log für Details.")
+
+
+
 
 
 
