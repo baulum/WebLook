@@ -8,6 +8,7 @@ config.env
 file.txt
 json_output.txt
 user_manual.pdf
+logs.log
 WebLook.spec
 login_test.py
 init_url_get.txt
