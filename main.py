@@ -1719,7 +1719,7 @@ class FetchTimetablePage(QWidget):
         # 6) Neue Version in version.txt zurückschreiben
         with open(version_file_path, "w", encoding="utf-8") as f:
             f.write(new_version)
-            QMessageBox.information(self, "Version", f'Die version.txt wurde auf "{new_version}" gesetzt')
+            QMessageBox.information(self, "Version", f'Die {version_file_path} wurde auf "{new_version}" gesetzt')
         return new_version
 
     def toggle_debug_log_visibility(self):
@@ -2052,7 +2052,8 @@ def version_control(self):
                     
         # Increment version in version.txt
         updated_version = self.increment_version_txt(version_file_path=local_version_file)
-
+        # Increment version in dist/assets/version.txt
+        updated_version = self.increment_version_txt(version_file_path=dist_version_file)
         # Execute PyInstaller to build the WebLook executable
         os.system(f'pyinstaller main.py --onefile --noconsole --hidden-import=holidays.countries --name WebLook --icon "{icon_path}"')
         # Execute PyInstaller to build the updater executable
@@ -2104,7 +2105,10 @@ def push_to_github(self, version, repo_path):
 
 def main():
     global local_version_file
-    local_version_file="./assets/version.txt"
+    local_version_file= "./assets/version.txt"
+    global dist_version_file
+    dist_version_file= "./dist/assets/version.txt"
+    ".dis/assets/version.txt"
     warnings.filterwarnings("ignore", category=DeprecationWarning, module='PyQt5')
     app = QApplication(sys.argv)
     window = MainWindow()
