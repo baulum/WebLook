@@ -2049,11 +2049,11 @@ def version_control(self):
 
         script_directory = os.path.dirname(os.path.abspath(sys.argv[0]))
         icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
-                    
+        # Increment version in dist/assets/version.txt
+        updated_version = self.increment_version_txt(version_file_path=dist_version_file)            
         # Increment version in version.txt
         updated_version = self.increment_version_txt(version_file_path=local_version_file)
-        # Increment version in dist/assets/version.txt
-        updated_version = self.increment_version_txt(version_file_path=dist_version_file)
+        
         # Execute PyInstaller to build the WebLook executable
         os.system(f'pyinstaller main.py --onefile --noconsole --hidden-import=holidays.countries --name WebLook --icon "{icon_path}"')
         # Execute PyInstaller to build the updater executable
