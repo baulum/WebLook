@@ -979,17 +979,18 @@ class Updater:
                  local_version_file: str,
                  remote_version_url: str,
                  remote_zip_url: str,
-                 target_path: str,  # Pfad, in dem die Update-Dateien installiert werden sollen.
+                 target_path: str,
                  download_path: str = "./update_download.zip",
                  extract_path: str = "./update_temp",
-                output_method = print):
+                 output_method=print):
         """
         :param local_version_file: Pfad zur lokalen version.txt (z.B. "./version.txt").
         :param remote_version_url: URL zum raw-Inhalt der version.txt in deinem GitHub-Repo.
-                                   Beispiel: "https://raw.githubusercontent.com/USER/REPO/BRANCH/version.txt"
         :param remote_zip_url: URL zum ZIP-Archiv deines Projekts (z.B. ein Release-ZIP auf GitHub).
-        :param download_path: Temporärer Dateiname/ -pfad zum Herunterladen des ZIP-Archivs.
-        :param extract_path: Temporärer Ordner, in dem das Archiv entpackt wird.
+        :param target_path: (Nicht mehr genutzt in dieser Variante.)
+        :param download_path: Temporäre ZIP-Datei, in die heruntergeladen wird.
+        :param extract_path: Temporärer Ordner (falls du es doch noch brauchst).
+        :param output_method: Methode zur Konsolen-/Logausgabe (default: print).
         """
         self.local_version_file = local_version_file
         self.remote_version_url = remote_version_url
@@ -1000,28 +1001,22 @@ class Updater:
         self.output_method = output_method
 
     def get_local_version(self):
-        """
-        Liest die lokale Version aus der version.txt
-        """
+        """Liest die lokale Version aus der version.txt"""
         if not os.path.exists(self.local_version_file):
-            # Wenn keine lokale Version existiert, 0.0.0 annehmen (oder Exception werfen)
             return "0.0.0"
-
         with open(self.local_version_file, "r", encoding="utf-8") as f:
             return f.read().strip()
 
     def get_remote_version(self):
-        """
-        Lädt die Versionsnummer aus der version.txt auf GitHub (raw) herunter.
-        """
+        """Lädt die Versionsnummer aus der version.txt auf GitHub (raw) herunter."""
         response = requests.get(self.remote_version_url, timeout=10)
-        response.raise_for_status()  # wirft eine Exception bei Fehler
+        response.raise_for_status()
         return response.text.strip()
 
     def compare_versions(self, local_version: str, remote_version: str):
         """
         Vergleicht die Versionen. Gibt True zurück, wenn remote_version > local_version ist.
-        Hier ein einfacher Vergleich über die semantischen Versionsteile (major.minor.patch).
+        Beispielhafter Vergleich über major.minor.patch.
         """
         def parse_version(ver: str):
             return list(map(int, ver.split(".")))
@@ -1029,21 +1024,18 @@ class Updater:
         local_parts = parse_version(local_version)
         remote_parts = parse_version(remote_version)
 
-        # Beispielhafter Vergleich: remote > local, wenn an erster ungleicher Stelle remote größer ist
         for l, r in zip(local_parts, remote_parts):
             if r > l:
                 return True
             elif r < l:
                 return False
-
-        # Falls z. B. "1.0.0" und "1.0.0" oder das Format anders lang ist
+        # Falls beide Versionen gleich lang sind, ist remote größer,
+        # wenn es mehr Stellen hat (z. B. 1.0.0 vs 1.0.0.1)
         return len(remote_parts) > len(local_parts)
 
     def download_zip(self):
-        """
-        Lädt die ZIP-Datei vom GitHub-Repo herunter und speichert sie unter `download_path`.
-        """
-        self.output_method("Lade Update ZIP herunter...")
+        """Lädt die ZIP-Datei vom GitHub-Repo herunter in self.download_path."""
+        self.output_method("Lade Update-ZIP herunter...")
         response = requests.get(self.remote_zip_url, stream=True, timeout=30)
         response.raise_for_status()
 
@@ -1053,152 +1045,92 @@ class Updater:
                     f.write(chunk)
         self.output_method(f"ZIP-Datei wurde als '{self.download_path}' gespeichert.")
 
-    def extract_zip(self):
-        """
-        Entpackt die heruntergeladene ZIP-Datei in einen temporären Ordner.
-        """
-        self.output_method("Entpacke ZIP-Datei...")
-        if not os.path.exists(self.extract_path):
-            os.makedirs(self.extract_path)
-
-        with zipfile.ZipFile(self.download_path, 'r') as zip_ref:
-            zip_ref.extractall(self.extract_path)
-        self.output_method(f"ZIP-Datei wurde in '{self.extract_path}' entpackt.")
-
-    def replace_files(self, source_dir: str, target_dir: str):
-        """
-        Ersetzt alle Dateien aus dem entpackten Ordner in das Zielverzeichnis.
-        Achtung: Dabei können lokale Änderungen überschrieben werden.
-        """
-        self.output_method(f"Kopiere Dateien aus '{source_dir}' nach '{target_dir}'...")
-        for root, dirs, files in os.walk(source_dir):
-            rel_path = os.path.relpath(root, source_dir)
-            dest_path = os.path.join(target_dir, rel_path)
-
-            if not os.path.exists(dest_path):
-                os.makedirs(dest_path)
-
-            for file in files:
-                src_file = os.path.join(root, file)
-                dst_file = os.path.join(dest_path, file)
-                shutil.copy2(src_file, dst_file)
-        self.output_method("Dateien wurden erfolgreich aktualisiert.")
-
-    def cleanup(self):
-        """
-        Löscht die temporären Download- und Extraktionsdateien/-ordner.
-        """
-        if os.path.exists(self.download_path):
-            os.remove(self.download_path)
-        if os.path.exists(self.extract_path):
-            shutil.rmtree(self.extract_path)
-
-
     def check_for_update(self) -> bool:
-        # (1) Versionen vergleichen usw...
+        """
+        Prüft, ob ein Update verfügbar ist. Wenn remote > local:
+          1) ZIP herunterladen
+          2) In den Download-Ordner entpacken:
+             "<Benutzer-Download-Ordner>/WebLook_v<REMOTE_VERSION>"
+          3) Diesen neuen Ordner öffnen (Explorer/Finder/xdg-open)
+        """
         local_ver = self.get_local_version()
         remote_ver = self.get_remote_version()
 
-        if self.compare_versions(local_ver, remote_ver):
-            # (2) Update herunterladen/entpacken/kopieren ...
-            self.download_zip()
-            self.extract_zip()
-            self.replace_files(self.extract_path, self.target_path)
-            self.cleanup()
+        self.output_method(f"Lokale Version: {local_ver}, Remote Version: {remote_ver}")
 
+        if self.compare_versions(local_ver, remote_ver):
+            # Meldung an den User, dass ein Update verfügbar ist
             QMessageBox.information(
                 None,
-                "Update",
-                "Das Update wurde erfolgreich abgeschlossen!",
+                "Update verfügbar",
+                f"Eine neuere Version ({remote_ver}) wurde gefunden.\n"
+                "Das Update wird jetzt heruntergeladen.",
                 QMessageBox.Ok
             )
 
-            # (3) Neue EXE "entkoppelt" starten
-            exe_path = os.path.join(self.target_path, "WebLook-main/dist/WebLook.exe")
+            # 1) ZIP herunterladen
+            self.download_zip()
 
-            if os.name == "nt":
-                DETACHED_PROCESS = 0x00000008
-                CREATE_NEW_PROCESS_GROUP = 0x00000200
-                subprocess.Popen(
-                    exe_path,
-                    creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-                    close_fds=True
-                )
+            # 2) Zielordner im Downloads-Verzeichnis
+            #    z. B. "C:/Users/<Benutzer>/Downloads/WebLook_v1.0.0"
+            user_home = os.path.expanduser("~")
+            downloads_folder = os.path.join(user_home, "Downloads")
+            folder_name = f"WebLook_v{remote_ver}"
+
+            target_folder = os.path.join(downloads_folder, folder_name)
+            if not os.path.exists(target_folder):
+                os.makedirs(target_folder)
+
+            # ZIP-Datei entpacken
+            with zipfile.ZipFile(self.download_path, 'r') as zip_ref:
+                zip_ref.extractall(target_folder)
+
+            subdir_path = os.path.join(target_folder, "WebLook-main")
+            if os.path.isdir(subdir_path):
+                # Alle Dateien/Unterordner in WebLook-main
+                for item in os.listdir(subdir_path):
+                    src = os.path.join(subdir_path, item)
+                    dst = os.path.join(target_folder, item)
+                    shutil.move(src, dst)
+                # Jetzt den leeren Ordner entfernen
+                shutil.rmtree(subdir_path)
+
+            self.output_method(f"Update entpackt in: {target_folder}")
+
+            # Aufräumen: heruntergeladene ZIP entfernen
+            if os.path.exists(self.download_path):
+                os.remove(self.download_path)
+
+            # 3) Ordner öffnen
+            #    Windows: explorer <path>
+            #    macOS: open <path>
+            #    Linux: xdg-open <path>
+            open_cmd = []
+            if os.name == 'nt':
+                open_cmd = ['explorer', target_folder]
+            elif sys.platform == 'darwin':
+                open_cmd = ['open', target_folder]
             else:
-                # Linux/Mac: meist reicht normales Popen
-                subprocess.Popen([exe_path])
+                # Linux / andere Unix-Systeme
+                open_cmd = ['xdg-open', target_folder]
 
-            # (4) Kurze Verzögerung (häufig nicht nötig, aber kann helfen):
-            time.sleep(1)
-            subprocess.Popen([exe_path])
-            # (5) Alte Anwendung schließen
-            app = QApplication.instance()
-            
+            try:
+                subprocess.Popen(open_cmd)
+            except Exception as e:
+                self.output_method(f"Konnte Ordner nicht öffnen: {e}")
+
+            QMessageBox.information(
+                None,
+                "Update fertig",
+                f"Der entpackte Ordner wurde in Ihrem Explorer/Finder geöffnet.\n"
+                f"Pfad: {target_folder}",
+                QMessageBox.Ok
+            )
+
             return True
         else:
-            # Keine neuere Version
+            self.output_method("Keine neuere Version gefunden, Update nicht nötig.")
             return False
-
-    # def check_for_update(self):
-    #     local_ver = self.get_local_version()
-    #     remote_ver = self.get_remote_version()
-
-    #     self.output_method(f"Lokale Version: {local_ver}, Remote Version: {remote_ver}")
-
-    #     if self.compare_versions(local_ver, remote_ver):
-    #         QMessageBox.information(
-    #                 None,
-    #                 "Update",
-    #                 "Eine neue Version ist verfügbar! Starte Update...",
-    #                 QMessageBox.Ok
-    #                 )
-    #         try:
-    #             self.download_zip()
-    #             self.extract_zip()
-    #             source_dir = self.extract_path
-    #             target_dir = self.target_path
-    #             self.replace_files(source_dir, target_dir)
-    #         finally:
-    #             self.cleanup()
-
-    #         # Hier geben wir dem/der Nutzer/in Bescheid:
-    #         QMessageBox.information(
-    #             None,
-    #             "Update",
-    #             "Das Update wurde erfolgreich abgeschlossen!",
-    #             QMessageBox.Ok
-    #         )
-
-    #         # Nun die neue .exe starten. 
-    #         # Passen Sie den Pfad ggf. an, je nachdem wo sich die fertige Datei befindet.
-    #         exe_path = os.path.join(self.target_path, "WebLook-main/dist/WebLook.exe")
-    #         #print(exe_path)
-    #         # Neue Version im Hintergrund starten
-    #         try:
-    #             subprocess.Popen([exe_path])
-    #             print("Trying to run WebLook.exe")
-    #         except Exception as e:
-    #             self.output_method(f"Fehler beim Starten der neuen Version: {e}")
-    #             # Optional: Eine weitere QMessageBox mit Fehlerinfo
-    #             return True
-
-    #         # Jetzt die laufende Anwendung beenden
-    #         # (A) Falls Sie eine PyQt-Anwendung haben:
-    #         app = QApplication.instance()
-    #         if app:
-    #             print("Trying to quit... app.quit()")
-    #             app.quit()
-    #             sys.exit(0)
-    #         else:
-    #             # (B) Falls Sie rein per Python laufen:
-    #             print("Trying to quit... sys.exit(0)")
-    #             sys.exit(0)
-
-    #         return True
-    #     else:
-    #         self.output_method("Keine neuere Version gefunden, kein Update nötig.")
-    #         return False
-
 
 
 # -----------------------------
@@ -1269,14 +1201,14 @@ class MainWindow(QMainWindow):
             local_version_file=local_version_file,
             remote_version_url="https://raw.githubusercontent.com/baulum/WebLook/main/assets/version.txt",
             remote_zip_url="https://github.com/baulum/WebLook/archive/refs/heads/main.zip",
-            target_path="./",
+            target_path=" ",
             download_path="update_download.zip",
             extract_path="update_temp",
             output_method=print  # für Debugzwecke: Ausgabe der Update-Ausgaben
         )
         is_update = updater.check_for_update()
         if is_update:
-            sys.exit(0)
+             sys.exit(0)
 
 
     def on_page_switch(self, index):
@@ -2114,8 +2046,10 @@ class FetchTimetablePage(QWidget):
                     # Increment version in version.txt
                     updatd_version = self.increment_version_txt(version_file_path=local_version_file)
 
-                    # Execute PyInstaller to build the executable
+                    # Execute PyInstaller to build the WebLook executable
                     os.system(f'pyinstaller main.py --onefile --noconsole --hidden-import=holidays.countries --name WebLook --icon "{icon_path}"')
+                    # Execute PyInstaller to build the updater executable
+                    os.system(f'pyinstaller updater.py --onefile --name WebLook_updater --icon "{icon_path}"')
                     
                     if not os.path.exists("./dist/WebLook.exe"):
                         QMessageBox.critical(self, "Fehler","Build failed.")
@@ -2125,7 +2059,7 @@ class FetchTimetablePage(QWidget):
                         build_assets_path = os.path.join(script_directory, "dist", "assets")
                         if not os.path.exists(build_assets_path):
                             os.makedirs(build_assets_path)
-                        os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s')
+                        os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s /Y')
                         QMessageBox.information(self, "Erfolgreich", "Build successful.")
                         
 
