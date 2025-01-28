@@ -264,6 +264,7 @@ def fetch_timetable_data(url, headers):
         return response.json()
     except requests.exceptions.RequestException as e:
         write_log(f"Fehler bei der Anfrage: {e}")
+        
         return None
     except ValueError as e:
         write_log(f"Fehler beim Parsen von JSON: {e}")
@@ -1769,15 +1770,18 @@ class FetchTimetablePage(QWidget):
                 return
 
         self.debug_log(f"Suche Schulen für Stadt: {city}")
+        write_log(f"Suche Schulen für Stadt: {city}")
         try:
             schools = get_schools(city, debug_mode)
         except Exception as e:
+            write_log(f"Fehler beim Laden der Schulen: {str(e)}")
             QMessageBox.critical(self, "Fehler", f"Fehler beim Laden der Schulen: {str(e)}")
             return
 
         self.schools_combo.clear()
         if not schools:
             self.debug_log("Keine Schulen gefunden.")
+            write_log("Keine Schulen gefunden.")
             return
 
         self.found_schools = schools
@@ -1959,6 +1963,8 @@ class FetchTimetablePage(QWidget):
                 if not class_id:
                     QMessageBox.warning(self, "Fehler", "Keine gültige Klassen-ID gefunden. Stundenplan kann nicht abgerufen werden.")
                     return
+                student_name_path = "Unknown_Student_Name"
+                student_name = "Unknown Student Name"
             else:
                 # Step 3: Fetch bearer token
                 bearer_url = f'https://{school["server"]}/WebUntis/api/token/new'
