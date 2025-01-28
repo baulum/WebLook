@@ -2029,43 +2029,77 @@ class FetchTimetablePage(QWidget):
                     open_ics_with_default_app(ics_path)
 
             if debug_mode:
-                ret = QMessageBox.question(
-                    self,
-                    "Builden?",
-                    "Soll diese Version gebuildet werden?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if ret == QMessageBox.Yes:
-                    self.debug_log("Version wird gebaut...")
-                    if os.path.exists("./dist/WebLook.exe"):
-                        os.remove("./dist/WebLook.exe")
-
-                    script_directory = os.path.dirname(os.path.abspath(sys.argv[0]))
-                    icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
-                    
-                    # Increment version in version.txt
-                    updatd_version = self.increment_version_txt(version_file_path=local_version_file)
-
-                    # Execute PyInstaller to build the WebLook executable
-                    os.system(f'pyinstaller main.py --onefile --noconsole --hidden-import=holidays.countries --name WebLook --icon "{icon_path}"')
-                    # Execute PyInstaller to build the updater executable
-                    os.system(f'pyinstaller updater.py --onefile --name WebLook_updater --icon "{icon_path}"')
-                    
-                    if not os.path.exists("./dist/WebLook.exe"):
-                        QMessageBox.critical(self, "Fehler","Build failed.")
-                    else:
-                        # Copy assets to the build directory
-                        assets_path = os.path.join(script_directory, "assets")
-                        build_assets_path = os.path.join(script_directory, "dist", "assets")
-                        if not os.path.exists(build_assets_path):
-                            os.makedirs(build_assets_path)
-                        os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s /Y')
-                        QMessageBox.information(self, "Erfolgreich", "Build successful.")
+                build(self=self)
                         
 
         except Exception as e:
             self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
             QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten. Siehe Log für Details.")
+def build(self):
+    ret = QMessageBox.question(
+        self,
+        "Builden?",
+        "Soll diese Version gebuildet werden?",
+        QMessageBox.Yes | QMessageBox.No
+    )
+    if ret == QMessageBox.Yes:
+        self.debug_log("Version wird gebaut...")
+        if os.path.exists("./dist/WebLook.exe"):
+            os.remove("./dist/WebLook.exe")
+
+        script_directory = os.path.dirname(os.path.abspath(sys.argv[0]))
+        icon_path = os.path.join(script_directory, "assets/icons/normal/webuntisscraper.ico")
+                    
+        # Increment version in version.txt
+        updated_version = self.increment_version_txt(version_file_path=local_version_file)
+
+        # Execute PyInstaller to build the WebLook executable
+        os.system(f'pyinstaller main.py --onefile --noconsole --hidden-import=holidays.countries --name WebLook --icon "{icon_path}"')
+        # Execute PyInstaller to build the updater executable
+                    
+        if not os.path.exists("./dist/WebLook.exe"):
+                QMessageBox.critical(self, "Fehler","Build failed.")
+        else:
+            # Copy assets to the build directory
+            assets_path = os.path.join(script_directory, "assets")
+            build_assets_path = os.path.join(script_directory, "dist", "assets")
+            if not os.path.exists(build_assets_path):
+                os.makedirs(build_assets_path)
+                os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s /Y')
+                QMessageBox.information(self, "Erfolgreich", "Build successful.")
+
+    ret = QMessageBox.question(
+        self,
+        "Push to Github?",
+        "Soll diese Version auf Github gepusht werden?",
+        QMessageBox.Yes | QMessageBox.No
+    )
+    if ret == QMessageBox.Yes:
+        push_to_github(updated_version, script_directory)
+
+def push_to_github(self, version, repo_path):
+    """
+    Commits and pushes the latest build (and version file) to GitHub.
+    Make sure your local Git is configured with the correct remote and credentials.
+    """
+    # Move into the repository directory to run Git commands
+    original_path = os.getcwd()
+    try:
+        os.chdir(repo_path)
+        
+        # Stage all changes; or you can selectively add only what you want (e.g., version.txt, dist/)
+        os.system("git add .")
+        
+        # Commit with a message that includes the version
+        os.system(f'git commit -m "Build version {version}"')
+        
+        # Push to remote (change 'origin' and branch name if needed)
+        os.system("git push origin main")
+        
+        self.debug_log(f"Pushed build version {version} to GitHub.")
+    finally:
+        # Change back to the original working directory
+        os.chdir(original_path)
 
 
 def main():
