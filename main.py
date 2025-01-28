@@ -1,5 +1,6 @@
 import sys
 import os
+import webbrowser
 import re
 import json
 import base64
@@ -671,13 +672,13 @@ def create_ics_file_for_week(
                 oof_description = (
                     "Sehr geehrte Damen und Herren,\\n\\n"
                     f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str}"
-                    "wieder erreichen.\\n\\n"
+                    " wieder erreichen.\\n\\n"
                     f"Viele Grüße,\\n\\n{name}\\n{betrieb}\\n\\n{email}\\n\\n"
                 )
                 print_description = (
                     "\nSehr geehrte Damen und Herren,\n\n"
                     f"leider bin ich derzeit außer Haus. Sie können mich ab dem {next_workday_str}"
-                    "wieder erreichen.\n\n"
+                    " wieder erreichen.\n\n"
                     f"Viele Grüße,\n\n{name}\n{betrieb}\n\n{email}\n\n"
                 )
             else:
@@ -1388,7 +1389,35 @@ class MainMenuPage(QWidget):
         # Add a placeholder label or something
         info = QLabel("Nutzen Sie die Seitenleiste, um zu navigieren:\n\n1) Stundenplan abrufen\n2) Einstellungen\n")
         layout.addWidget(info)
+
+        # --- Easter Egg Setup ---
+        # A hidden label that only appears when the user interacts with it.
+        self.easter_egg_label = QLabel("Geheim! Sie haben das Osterei gefunden! \u2728")
+        self.easter_egg_label.setStyleSheet("color: green; font-style: italic; font-size: 12pt;")
+        self.easter_egg_label.hide()
+
+        # 2) A button that is almost invisible:
+        self.easter_egg_button = QPushButton("")
+        self.easter_egg_button.setStyleSheet(
+            # Make the background transparent and remove borders or highlights
+            "background-color: transparent;"
+            "border: none;"
+        )
+        # Optional: Make the button as small as you like
+        self.easter_egg_button.setFixedSize(80, 80)
+        self.easter_egg_button.clicked.connect(self.show_easter_egg)
+
+        # Add to layout
+        layout.addWidget(self.easter_egg_button)
+        layout.addWidget(self.easter_egg_label)
+
+
         layout.addStretch()
+
+    def show_easter_egg(self):
+        """Open Never Gonnna Give You up."""
+        easter_egg_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        webbrowser.open(easter_egg_url)
 
 
 class SettingsPage(QWidget):
