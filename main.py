@@ -2029,13 +2029,13 @@ class FetchTimetablePage(QWidget):
                     open_ics_with_default_app(ics_path)
 
             if debug_mode:
-                build(self=self)
+                version_control(self=self)
                         
 
         except Exception as e:
             self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
             QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten. Siehe Log für Details.")
-def build(self):
+def version_control(self):
     ret = QMessageBox.question(
         self,
         "Builden?",
