@@ -490,6 +490,8 @@ def create_ics_file_for_week(
         school_days_subjects_teachers, 
         key=lambda x: (x["lesson_date"], x["start_time"])
     )
+
+    write_log(f"school_days_subjects_teachers: {school_days_subjects_teachers}")
     
     # Determine the school name
     schoolname = school_data.get('loginSchool', "Schule") if school_data else "Schule"
@@ -595,6 +597,7 @@ def create_ics_file_for_week(
     #     ])
     #print("ausbildermodus:" + str(ausbilder_modus))
     if not ausbilder_modus:
+        write_log(f"Sorted_lessons: {sorted_lessons}") 
         for lesson in sorted_lessons:
             # if debug_mode:
             #     print(lesson)
@@ -636,6 +639,9 @@ def create_ics_file_for_week(
                 "STATUS:CONFIRMED",
                 "END:VEVENT"
             ])
+            write_log(f"StartDate: {event_start} EndDate: {event_end} Summary: {summary_line} Description: {description_line}")
+            
+            #write_log(f"Lesson: {lesson}")
 
 
     # Create OOF blocks for consecutive school days
@@ -964,6 +970,11 @@ def fetch_data_for_next_weeks(
             write_log(f"Accessing Api-Endpoint: {api_url}")
         timetable_data = fetch_timetable_data(api_url, headers)
         if timetable_data:
+
+            write_log(f"""Timetable data: 
+                      {timetable_data}
+""")
+
             results = get_school_days_subjects_teachers(timetable_data, debug_mode)
             all_school_days.extend(results)
 
@@ -2037,6 +2048,10 @@ class FetchTimetablePage(QWidget):
                 debug_mode=debug_mode,
                 debug_log_func=self.debug_log
             )
+            write_log(f"""All days: 
+{all_days}
+
+""")
 
             if not all_days:
                 self.debug_log("Keine Stunden gefunden.")
