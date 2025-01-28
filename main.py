@@ -2075,7 +2075,7 @@ def build(self):
         QMessageBox.Yes | QMessageBox.No
     )
     if ret == QMessageBox.Yes:
-        push_to_github(updated_version, script_directory)
+        push_to_github(self, updated_version, script_directory)
 
 def push_to_github(self, version, repo_path):
     """
