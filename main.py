@@ -13,12 +13,12 @@ import warnings
 import holidays
 import zipfile
 import shutil
-
+import platform
 
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QFont, QTextCursor
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QFileDialog, 
     QPushButton, QLabel, QStackedWidget, QSpacerItem, QLineEdit, QTextEdit, QSpinBox,
     QMessageBox, QScrollArea, QFrame, QStyle, QGridLayout, QSizePolicy, QComboBox, QCheckBox, QFileDialog
 )
@@ -272,9 +272,6 @@ def fetch_timetable_data(url, headers):
         write_log(f"Fehler beim Parsen von JSON: {e}")
         return None
 
-
-import datetime
-
 def get_school_days_subjects_teachers(json_data, debug_mode=False):
     """
     Parses the returned JSON for timetable data and supports both 'elementPeriods' and 'elements'.
@@ -363,84 +360,6 @@ def get_school_days_subjects_teachers(json_data, debug_mode=False):
     return school_days_subjects_teachers
 
 
-
-
-
-
-# def get_school_days_subjects_teachers(json_data, debug_mode=False):
-#     """
-#     As in your existing code, parse the returned JSON for timetable data.
-#     """
-#     date_to_day = {
-#         0: 'Montag',
-#         1: 'Dienstag',
-#         2: 'Mittwoch',
-#         3: 'Donnerstag',
-#         4: 'Freitag',
-#         5: 'Samstag',
-#         6: 'Sonntag',
-#     }
-#     try:
-#         if json_data["data"]["result"]:
-#             element_periods = json_data['data']['result']['data'].get('elementPeriods')
-#             if element_periods is None:
-#                 element_periods = json_data['data']['result']['data'].get('elements', {})
-#     except KeyError:
-#         if debug_mode:
-#             print("Fehler:" + json_data["data"]["error"]["data"].get("messageKey"))
-#         return []
-        
-
-#     school_days_subjects_teachers = []
-
-#     for _, periods in element_periods.items():
-#         for period in periods:
-#             #print(period)
-#             date = period['date']
-#             date_str = str(date)
-#             year = int(date_str[:4])
-#             month = int(date_str[4:6])
-#             day = int(date_str[6:])
-#             lesson_date = datetime.date(year, month, day)
-#             day_of_week = lesson_date.weekday()
-#             school_day = date_to_day[day_of_week]
-
-#             lesson_code = period.get('studentGroup', '')
-#             if '_' in lesson_code:
-#                 parts = lesson_code.split('_', 1)
-#                 subject = parts[0]
-#                 teacher_part = parts[1] if len(parts) > 1 else 'Unbekannt'
-#                 teacher_parts = teacher_part.split("_")
-#                 teacher = teacher_parts[-1] if len(teacher_parts) > 1 else teacher_part
-#             else:
-#                 subject = lesson_code
-#                 teacher = 'Unbekannt'
-
-#             cellState = period.get("cellState", '')
-#             is_exam = (cellState == "EXAM")
-#             is_additional = (cellState == "ADDITIONAL")
-
-#             start_time = period.get('startTime', 0)
-#             end_time = period.get('endTime', 0)
-#             start_hour = start_time // 100
-#             start_minute = start_time % 100
-#             end_hour = end_time // 100
-#             end_minute = end_time % 100
-
-#             if debug_mode:
-#                 print(f"Processed: {subject}, cellState={cellState}")
-
-#             school_days_subjects_teachers.append({
-#                 "lesson_date": lesson_date,
-#                 "school_day": school_day,
-#                 "subject": subject,
-#                 "teacher": teacher,
-#                 "is_exam": is_exam,
-#                 "is_additional": is_additional,
-#                 "start_time": datetime.time(start_hour, start_minute),
-#                 "end_time": datetime.time(end_hour, end_minute),
-#             })
-#     return school_days_subjects_teachers
 
 def get_next_workday(date_obj, holiday_dates, school_days):
     """
@@ -849,41 +768,6 @@ def get_schools(city, debug_mode=False):
         })
     return school_data
 
-# def get_classes(server, school, jsession_id, trace_id, debug_mode=False):
-#     """
-#     Same as before: gets a list of classes from the /api/rest/view/v1/timetable/filter endpoint.
-#     We will call it after we've done the new form-based login, so we have a valid JSESSIONID + traceId.
-#     """
-#     my_api_url = ""
-#     api_url = f"https://{server}/WebUntis/api/rest/view/v1/timetable/filter?resourceType=CLASS&timetableType=STANDARD"
-#     response = requests.get(
-#         api_url,
-#         headers=get_headers(
-#             tenant_id=school["tenantId"],
-#             schoolname=school["loginName"],
-#             server=school["server"],
-#             login_name=school["loginSchool"],
-#             jsession_id=jsession_id,
-#             trace_id=trace_id,
-#             method="get_class_id_headers"
-#         )
-#     )
-#     if response.status_code != 200:
-#         return None, response.json()
-#     data = response.json()
-#     classes = data["classes"]
-#     class_data = []
-#     for c in classes:
-#         cinfo = c["class"]
-#         class_data.append({
-#             "id": cinfo["id"],
-#             "shortName": cinfo["shortName"],
-#             "longName": cinfo["longName"],
-#             "displayName": cinfo["displayName"]
-#         })
-#     if debug_mode:
-#         print("Class data:", class_data)
-#     return class_data, None
 def get_classes(server, school, session, debug_mode=False):
     api_url = f"https://{server}/WebUntis/api/rest/view/v1/timetable/filter?resourceType=CLASS&timetableType=STANDARD"
     if debug_mode:
@@ -1150,6 +1034,7 @@ class Updater:
 # -----------------------------
 # PyQt5 GUI Implementation
 # -----------------------------
+
 class MainWindow(QMainWindow):
     """A QMainWindow with a sidebar and a central stacked widget
        to display different pages (Main Menu, Settings, Fetch Timetable)."""
@@ -1179,7 +1064,7 @@ class MainWindow(QMainWindow):
         # Create pages
         self.main_menu_page = MainMenuPage(self.config_data, self)
         self.fetch_page = FetchTimetablePage(self.config_data, self)
-        
+        self.bug_report_page = BugReportPage(self.config_data, self)
         #self.fetch_page.log_text.setVisible(True)
         
         
@@ -1189,6 +1074,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.main_menu_page)   # index 0
         self.stacked_widget.addWidget(self.settings_page)    # index 1
         self.stacked_widget.addWidget(self.fetch_page)       # index 2
+        self.stacked_widget.addWidget(self.bug_report_page) # index 3
         
         # Set central widget
         self.setCentralWidget(central_widget)
@@ -1239,7 +1125,10 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         # Title or big label
-        brand_label = QLabel("WebLook")
+        with open("./assets/version.txt", "r") as file:
+            current_version = file.readline().strip()
+
+        brand_label = QLabel(f"WebLook v{current_version}")
         font = QFont()
         font.setPointSize(16)
         font.setBold(True)
@@ -1261,8 +1150,13 @@ class MainWindow(QMainWindow):
         btn_settings = QPushButton("Einstellungen")
         btn_settings.setIcon(QIcon("./assets/icons/inverted/setting_inverted.png"))
         btn_settings.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
-
         layout.addWidget(btn_settings)
+
+        btn_bug_reporter = QPushButton("Bug Report")
+        btn_bug_reporter.setIcon(QIcon("./assets/icons/inverted/bug_report_inverted.png"))
+        btn_bug_reporter.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(3))
+        layout.addWidget(btn_bug_reporter)
+        
        
 
         layout.addStretch()  # push everything up
@@ -1443,6 +1337,8 @@ class SettingsPage(QWidget):
         self.setObjectName("settingsPage")
         self.config_data = config_data
 
+        self.debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
         main_layout = QVBoxLayout(self)
@@ -1497,21 +1393,19 @@ class SettingsPage(QWidget):
                 if val.lower() == "true":
                     self.check_box.setChecked(True)
                     self.check_box.setText("Debugging ist eingeschaltet")
+                    
                 else:     
                     self.check_box.setChecked(False)
                     self.check_box.setText("Debugging ist ausgeschaltet")
                 grid.addWidget(self.check_box, row, 1, 1, 1)
-
+                
             if key == "Ausbildermodus":
                 self.ausbilder_check_box = QCheckBox()
                 val = self.config_data.get(key, False)
-                if val.lower() == "true":
-                    
-                    self.ausbilder_check_box.setChecked(True)
-                    
+                if val.lower() == "true":     
+                    self.ausbilder_check_box.setChecked(True)    
                     self.ausbilder_check_box.setText("Ausbildermodus ist eingeschaltet")
                 else:
-                        
                     self.ausbilder_check_box.setChecked(False)
                     self.ausbilder_check_box.setText("Ausbildermodus ist ausgeschaltet")
                 grid.addWidget(self.ausbilder_check_box, row, 1, 1, 1)
@@ -1519,12 +1413,15 @@ class SettingsPage(QWidget):
         #global debug_mode
         self.btn_save = QPushButton("Speichern")
         self.btn_save.setIcon(QIcon("./assets/icons/inverted/save_inverted.png"))
+        #
         self.show_pass_btn.clicked.connect(self.change_pass_visible)
         self.check_box.clicked.connect(self.change_debug)
         self.ausbilder_check_box.clicked.connect(self.change_ausbilder_modus)
         self.btn_save.clicked.connect(self.save_settings)
         grid.addWidget(self.btn_save, row, 0, 1, 2)
         self.refresh()
+    def build(self):
+        version_control(self)
 
     def change_ausbilder_modus(self):
         if self.ausbilder_check_box.isChecked():
@@ -1611,6 +1508,7 @@ class SettingsPage(QWidget):
 
 
 class FetchTimetablePage(QWidget):
+
     def __init__(self, config_data, parent=None):
         super().__init__(parent)
         self.config_data = config_data
@@ -1684,12 +1582,10 @@ class FetchTimetablePage(QWidget):
         create_oof_layout.addWidget(self.create_oof_box)
         
 
-        # # 6) Fetch Button
-        # self.fetch_btn = QPushButton("Stundenplan abrufen!")
-        # self.fetch_btn.clicked.connect(self.run_fetch)
-        # layout.addWidget(self.fetch_btn)
+        # 7) Log text. Display only when Dubigging is enabled
+        debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
 
-        # 6) Fetch Button
+        # 8) Fetch Button, Open Last and Build Buttons
         fetch_button_layout = QHBoxLayout()
 
         # Stundenplan abrufen Button
@@ -1702,18 +1598,28 @@ class FetchTimetablePage(QWidget):
         self.open_last_file_btn.setIcon(QIcon("./assets/icons/inverted/browse_inverted.png"))
         self.open_last_file_btn.clicked.connect(self.open_last_created_file)
         fetch_button_layout.addWidget(self.open_last_file_btn)
+        
+        #Build button
+        if debug_mode:
+            self.build_btn = QPushButton()
+            self.build_btn.setText("Build Version")
+            fetch_button_layout.addWidget(self.build_btn)
+            self.build_btn.clicked.connect(lambda: version_control(self))
 
         # Add the horizontal layout to the main layout
         self.main_layout.addLayout(fetch_button_layout)
 
-        # 7) Log text. Display only when Dubigging is enabled
-        debug_mode = (self.config_data.get("Debugging", "False").lower() == "true")
+        
 
         
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.main_layout.addWidget(self.log_text)
         self.log_text.setVisible(False)
+        
+
+        
+        
 
         
         self.main_layout.addWidget(self.log_text)
@@ -1771,9 +1677,9 @@ class FetchTimetablePage(QWidget):
             QMessageBox.information(self, "Version", f'Die {version_file_path} wurde auf "{new_version}" gesetzt')
         return new_version
 
-    def toggle_debug_log_visibility(self):
-        """Show or hide log_text based on debug_mode."""
-        self.log_text.setVisible(self.debug_mode)
+    # def toggle_debug_log_visibility(self):
+    #     """Show or hide log_text based on debug_mode."""
+    #     self.log_text.setVisible(self.debug_mode)
 
     def open_last_created_file(self):
         global last_created_ics
@@ -1863,6 +1769,7 @@ class FetchTimetablePage(QWidget):
         self.log_text.setVisible(show)
         self.spacer.changeSize(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding if not show else QSizePolicy.Minimum)
         self.main_layout.update()
+        self.build_btn.setVisible(show)
         
     
     def debug_log(self, msg):
@@ -2098,6 +2005,232 @@ class FetchTimetablePage(QWidget):
         except Exception as e:
             self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
             QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten. Siehe Log für Details.")
+
+class BugReportPage(QWidget):
+    def __init__(self, config_data, parent=None):
+        super().__init__(parent)
+        self.config_data = config_data
+        self.attachments = []
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+
+        # Formularfelder
+        form_layout = QFormLayout()
+        
+        self.bug_title = QLineEdit()
+        self.bug_description = QTextEdit()
+        self.steps_to_reproduce = QTextEdit()
+        self.expected_result = QLineEdit()
+        self.actual_result = QLineEdit()
+        self.os_input = QComboBox()
+
+        betriebssysteme = [
+            "Windows",
+            "macOS",
+            "Linux",
+        ]
+
+        self.os_input.addItems(betriebssysteme)
+        self.version_input = QLineEdit(self.config_data.get("app_version", ""))
+        self.frequency_combo = QComboBox()
+        self.frequency_combo.addItems(["Bitte auswählen" ,"Immer", "Gelegentlich", "Selten"])
+
+        if platform.system() == "Windows":
+            self.os_input.setCurrentIndex(1)
+        elif platform.system() == "Darwin":
+            self.os_input.setCurrentIndex(2)
+        elif platform.system() == "Linux":
+            self.os_input.setCurrentIndex(3)
+
+        # Felder zum Formular hinzufügen
+        form_layout.addRow("Titel*:", self.bug_title)
+        form_layout.addRow("Beschreibung*:", self.bug_description)
+        form_layout.addRow("Schritte zur Reproduktion*:", self.steps_to_reproduce)
+        form_layout.addRow("Erwartete Ausgabe*:", self.expected_result)
+        form_layout.addRow("Tatsächliche Ausgabe*:", self.actual_result)
+        form_layout.addRow("Betriebssystem*:", self.os_input)
+        form_layout.addRow("App-Version*:", self.version_input)
+        form_layout.addRow("Häufigkeit:", self.frequency_combo)
+
+        # Aktuelle App-Version eintragen
+        self.version_input.setText(current_version)
+
+        # Buttons
+        self.attach_btn = QPushButton("Dateien anhängen")
+        self.attach_btn.clicked.connect(self.attach_file)
+
+        self.attached_files_text = QLineEdit()
+        self.attached_files_text.setVisible(False)
+
+        
+        self.report_btn = QPushButton("Bug melden")
+        self.report_btn.clicked.connect(self.send_bug_report)
+        
+
+        layout.addLayout(form_layout)
+        layout.addWidget(self.attach_btn)
+        layout.addWidget(self.attached_files_text)
+        layout.addWidget(self.report_btn)
+        self.setLayout(layout)
+
+    def attach_file(self):
+        files, _ = QFileDialog.getOpenFileNames(self, "Dateien anhängen")
+        if files:
+            self.attachments.extend(files)
+            files_text = ""
+            for file in files:
+                if len(files) > 0:
+                    files_text = f"{self.attached_files_text.text()} {file}"
+                    self.attached_files_text.setText(f"{files_text}")
+                    self.attached_files_text.setVisible(True)
+                    # has_logs = False
+                    # if "logs.log" in files_text:
+                    #     has_logs = True
+            if not "logs.log" in files_text:
+                logs_path = os.path.join(sys.path[0], "logs.log")
+                print(logs_path)
+                self.attachments.append(logs_path)
+                self.attached_files_text.setText(f"{self.attached_files_text.text()} {logs_path}")
+
+    def send_bug_report(self):
+        
+        #User Input Validation
+        if not self.bug_title.text():
+            QMessageBox.warning(self, "Warnung", "Bitte geben Sie einen Titel ein.")
+            return
+        elif not self.bug_description.toPlainText():
+            QMessageBox.warning(self, "Warnung", "Bitte geben Sie eine Beschreibung ein.")
+            return
+        elif not self.steps_to_reproduce.toPlainText():
+            QMessageBox.warning(self, "Warnung", "Bitte geben Sie Schritte zur Reproduktion ein.")
+            return
+        elif not self.expected_result.text():
+            QMessageBox.warning(self, "Warnung", "Bitte geben Sie eine Erwartete Ausgabe ein.")
+            return
+        elif not self.os_input.currentText():
+            QMessageBox.warning(self, "Warnung", "Bitte wählen Sie ein Betriebssystem aus.")
+            return
+        elif not self.version_input.text():
+            QMessageBox.warning(self, "Warnung", "Bitte geben Sie die App-Version ein.")
+            return
+        elif self.frequency_combo.currentText() == "Bitte auswählen":
+            QMessageBox.warning(self, "Warnung", "Bitte wählen Sie die Häufigkeit aus.")
+            return
+        # Generate email body
+        email_body = f"""
+
+Beschreibung: 
+{self.bug_description.toPlainText()}
+
+Schritte zur Reproduktion: 
+{self.steps_to_reproduce.toPlainText()}
+
+Erwartet: {self.expected_result.text()}
+Tatsächlich: {self.actual_result.text()}
+
+Umgebung:
+- OS: {self.os_input.currentText()}
+- WebLook Version: {self.version_input.text()}
+- Häufigkeit: {self.frequency_combo.currentText()}
+
+Anhänge: Bitte manuell überprüfen!"""
+
+        subject = f"Bug Report in WebLook Version: {self.version_input.text()}"
+        recipient = "hoeflichp@media-saturn.com"
+
+        if platform.system() == "Windows":
+            try:
+                import win32com.client  # Windows Outlook COM library
+                outlook = win32com.client.Dispatch("Outlook.Application")
+                mail = outlook.CreateItem(0)  # Create a new email
+
+                # Set recipient, subject, and body
+                mail.To = recipient
+                mail.Subject = subject
+                mail.Body = email_body
+                print(self.attachments)
+                # Add multiple attachments
+                for attachment in self.attachments:
+                    mail.Attachments.Add(attachment)
+
+                mail.Display()  # Open email draft in Outlook
+                return
+
+            except Exception as e:
+                print(f"Fehler beim Erstellen der Outlook-E-Mail: {e}")
+
+        elif platform.system() == "Darwin":  # macOS
+            try:
+                apple_mail_cmd = f'mailto:{recipient}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(email_body)}'
+                subprocess.run(["open", apple_mail_cmd])
+                return
+            except Exception as e:
+                print(f"Fehler beim Öffnen von Apple Mail: {e}")
+
+        # Fallback for Linux and others (No attachments)
+        mailto = f"mailto:{recipient}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(email_body)}"
+        subprocess.run(["xdg-open", mailto] if platform.system() == "Linux" else ["open", mailto])
+
+        # Clear attachments after sending
+        self.attachments.clear()
+
+#     def send_bug_report(self):
+#         # E-Mail-Inhalt generieren
+#         email_body = f"""Bug Report
+
+# Beschreibung: 
+# {self.bug_description.toPlainText()}
+
+# Schritte zur Reproduktion: 
+# {self.steps_to_reproduce.toPlainText()}
+
+# Erwartet: {self.expected_result.text()}
+# Tatsächlich: {self.actual_result.text()}
+
+# Umgebung:
+# - OS: {self.os_input.currentText()}
+# - Version: {self.version_input.text()}
+# - Häufigkeit: {self.frequency_combo.currentText()}
+
+# Anhänge: {', '.join(self.attachments) if self.attachments else 'Keine'}"""
+
+#         # Mailto-Link erstellen (mit URL-Encoding)
+#         subject = f"Bug Report in WebLook Version: {self.version_input.text()}"
+#         mailto = f"mailto:hoeflichp@media-saturn.com?" \
+#                  f"subject={urllib.parse.quote(subject)}" \
+#                  f"&body={urllib.parse.quote(email_body)}"
+
+
+#         # Versuchen, den Standard-Mailclient mit Anhang zu öffnen (plattformabhängig)
+#         if os.name == "nt":
+#             try:
+#                 outlook_path = r"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE"
+#                 if os.path.exists(outlook_path):
+#                     # Erstellen einer Outlook-E-Mail mit Anhang
+#                     for attachment in self.attachments:
+#                         subprocess.run([outlook_path, "/a", attachment])
+#                     return
+#             except Exception as e:
+#                 print(f"Fehler beim Öffnen von Outlook: {e}")
+
+#         else:  # macOS
+#             try:
+#                 subprocess.run(["open", "mailto:hoeflichp@media-saturn.com"])
+#                 return
+#             except Exception as e:
+#                 print(f"Fehler beim Öffnen von Mail-App: {e}")
+        
+#         self.attachments.clear()
+                 
+#         # E-Mail-Client öffnen (platformabhängig)
+#         #import webbrowser
+#         webbrowser.open(mailto)
+
+
+
+
 def version_control(self):
     ret = QMessageBox.question(
         self,
@@ -2123,6 +2256,8 @@ def version_control(self):
                     
         if not os.path.exists("./dist/WebLook.exe"):
                 QMessageBox.critical(self, "Fehler","Build failed.")
+                self.debug_log("Build failed...")
+                write_log("Build failed...")
         else:
             # Copy assets to the build directory
             assets_path = os.path.join(script_directory, "assets")
@@ -2130,7 +2265,10 @@ def version_control(self):
             if not os.path.exists(build_assets_path):
                 os.makedirs(build_assets_path)
                 os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s /Y')
+                self.debug_log(f"Build successful for version {updated_version}")
+                write_log(f"Build successful for version {updated_version}")
                 QMessageBox.information(self, "Erfolgreich", "Build successful.")
+                
 
     ret = QMessageBox.question(
         self,
@@ -2171,7 +2309,10 @@ def main():
     local_version_file= "./assets/version.txt"
     global dist_version_file
     dist_version_file= "./dist/assets/version.txt"
-    ".dis/assets/version.txt"
+    global current_version
+    current_version = ""
+    with open("./assets/version.txt", "r") as file:
+            current_version = file.readline().strip()
     warnings.filterwarnings("ignore", category=DeprecationWarning, module='PyQt5')
     app = QApplication(sys.argv)
     window = MainWindow()
