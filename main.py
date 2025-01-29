@@ -19,7 +19,7 @@ from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QFont, QTextCursor
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QStackedWidget, QLineEdit, QTextEdit, QSpinBox,
+    QPushButton, QLabel, QStackedWidget, QSpacerItem, QLineEdit, QTextEdit, QSpinBox,
     QMessageBox, QScrollArea, QFrame, QStyle, QGridLayout, QSizePolicy, QComboBox, QCheckBox, QFileDialog
 )
 
@@ -1619,6 +1619,9 @@ class FetchTimetablePage(QWidget):
         #print(ausbilder_modus)
         self.main_layout = QVBoxLayout(self)
         title = QLabel("Stundenplan abrufen")
+        # if self.log_text_visible:
+        #     self.log_text_visible = False
+        #     self.toggle_log_text_button.setText("Log-Text ausblenden")
         font = QFont()
         font.setPointSize(16)
         font.setBold(True)
@@ -1714,6 +1717,10 @@ class FetchTimetablePage(QWidget):
 
         
         self.main_layout.addWidget(self.log_text)
+
+        # Add a spacer to maintain layout when log_text is hidden
+        self.spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.main_layout.addItem(self.spacer)
 
         self.setLayout(self.main_layout)
         self.refresh()
@@ -1852,6 +1859,11 @@ class FetchTimetablePage(QWidget):
         """Show or hide the log_text textbox."""
         self.log_text_visible = show
         self.log_text.setVisible(show)
+        #self.log_text_visible = not self.log_text_visible
+        self.log_text.setVisible(show)
+        self.spacer.changeSize(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding if not show else QSizePolicy.Minimum)
+        self.main_layout.update()
+        
     
     def debug_log(self, msg):
         """Log a debug message if debug_mode is enabled."""
