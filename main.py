@@ -262,6 +262,7 @@ def fetch_timetable_data(url, headers):
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
+        write_log(response.json)
         return response.json()
     except requests.exceptions.RequestException as e:
         write_log(f"Fehler bei der Anfrage: {e}")
