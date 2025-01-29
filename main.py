@@ -2284,13 +2284,12 @@ def push_to_github(self, version, repo_path):
     Make sure your local Git is configured with the correct remote and credentials.
     """
     # Move into the repository directory to run Git commands
+    self.debug_log(f"Pushing build version {version} to GitHub...")
+    write_log(f"Pushing build version {version} to GitHub...")
     original_path = os.getcwd()
     try:
         os.chdir(repo_path)
-        
-        self.debug_log(f"Pushing build version {version} to GitHub...")
-        write_log(f"Pushing build version {version} to GitHub...")
-
+    
         # Stage all changes; or you can selectively add only what you want (e.g., version.txt, dist/)
         os.system("git add .")
         
