@@ -1599,19 +1599,15 @@ class FetchTimetablePage(QWidget):
         self.open_last_file_btn.clicked.connect(self.open_last_created_file)
         fetch_button_layout.addWidget(self.open_last_file_btn)
         
-        #Build button
-        if debug_mode:
-            self.build_btn = QPushButton()
-            self.build_btn.setText("Build Version")
-            fetch_button_layout.addWidget(self.build_btn)
-            self.build_btn.clicked.connect(lambda: version_control(self))
+        
+        self.build_btn = QPushButton()
+        self.build_btn.setText("Build Version")
+        fetch_button_layout.addWidget(self.build_btn)
+        self.build_btn.clicked.connect(lambda: version_control(self))
 
         # Add the horizontal layout to the main layout
         self.main_layout.addLayout(fetch_button_layout)
 
-        
-
-        
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
         self.main_layout.addWidget(self.log_text)
@@ -2038,11 +2034,11 @@ class BugReportPage(QWidget):
         self.frequency_combo.addItems(["Bitte auswählen" ,"Immer", "Gelegentlich", "Selten"])
 
         if platform.system() == "Windows":
-            self.os_input.setCurrentIndex(1)
+            self.os_input.setCurrentIndex(0)
         elif platform.system() == "Darwin":
-            self.os_input.setCurrentIndex(2)
+            self.os_input.setCurrentIndex(1)
         elif platform.system() == "Linux":
-            self.os_input.setCurrentIndex(3)
+            self.os_input.setCurrentIndex(2)
 
         # Felder zum Formular hinzufügen
         form_layout.addRow("Titel*:", self.bug_title)
@@ -2175,61 +2171,8 @@ Anhänge: Bitte manuell überprüfen!"""
 
         # Clear attachments after sending
         self.attachments.clear()
-
-#     def send_bug_report(self):
-#         # E-Mail-Inhalt generieren
-#         email_body = f"""Bug Report
-
-# Beschreibung: 
-# {self.bug_description.toPlainText()}
-
-# Schritte zur Reproduktion: 
-# {self.steps_to_reproduce.toPlainText()}
-
-# Erwartet: {self.expected_result.text()}
-# Tatsächlich: {self.actual_result.text()}
-
-# Umgebung:
-# - OS: {self.os_input.currentText()}
-# - Version: {self.version_input.text()}
-# - Häufigkeit: {self.frequency_combo.currentText()}
-
-# Anhänge: {', '.join(self.attachments) if self.attachments else 'Keine'}"""
-
-#         # Mailto-Link erstellen (mit URL-Encoding)
-#         subject = f"Bug Report in WebLook Version: {self.version_input.text()}"
-#         mailto = f"mailto:hoeflichp@media-saturn.com?" \
-#                  f"subject={urllib.parse.quote(subject)}" \
-#                  f"&body={urllib.parse.quote(email_body)}"
-
-
-#         # Versuchen, den Standard-Mailclient mit Anhang zu öffnen (plattformabhängig)
-#         if os.name == "nt":
-#             try:
-#                 outlook_path = r"C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE"
-#                 if os.path.exists(outlook_path):
-#                     # Erstellen einer Outlook-E-Mail mit Anhang
-#                     for attachment in self.attachments:
-#                         subprocess.run([outlook_path, "/a", attachment])
-#                     return
-#             except Exception as e:
-#                 print(f"Fehler beim Öffnen von Outlook: {e}")
-
-#         else:  # macOS
-#             try:
-#                 subprocess.run(["open", "mailto:hoeflichp@media-saturn.com"])
-#                 return
-#             except Exception as e:
-#                 print(f"Fehler beim Öffnen von Mail-App: {e}")
-        
-#         self.attachments.clear()
-                 
-#         # E-Mail-Client öffnen (platformabhängig)
-#         #import webbrowser
-#         webbrowser.open(mailto)
-
-
-
+        self.attached_files_text.setText("")
+        self.attached_files_text.setVisible(False)
 
 def version_control(self):
     ret = QMessageBox.question(
@@ -2290,13 +2233,12 @@ def push_to_github(self, version, repo_path):
     try:
         os.chdir(repo_path)
     
-        # Stage all changes; or you can selectively add only what you want (e.g., version.txt, dist/)
         os.system("git add .")
         
         # Commit with a message that includes the version
         os.system(f'git commit -m "Build version {version}"')
         
-        # Push to remote (change 'origin' and branch name if needed)
+        # Push to github
         os.system("git push origin main")
         
         self.debug_log(f"Pushed build version {version} to GitHub.")
