@@ -2265,10 +2265,9 @@ def version_control(self):
             if not os.path.exists(build_assets_path):
                 os.makedirs(build_assets_path)
                 os.system(f'xcopy "{assets_path}" "{build_assets_path}" /e /h /s /Y')
-                self.debug_log(f"Build successful for version {updated_version}")
-                write_log(f"Build successful for version {updated_version}")
                 QMessageBox.information(self, "Erfolgreich", "Build successful.")
-                
+            self.debug_log(f"Build successful for version {updated_version}")
+            write_log(f"Build successful for version {updated_version}")    
 
     ret = QMessageBox.question(
         self,
@@ -2289,6 +2288,9 @@ def push_to_github(self, version, repo_path):
     try:
         os.chdir(repo_path)
         
+        self.debug_log(f"Pushing build version {version} to GitHub...")
+        write_log(f"Pushing build version {version} to GitHub...")
+
         # Stage all changes; or you can selectively add only what you want (e.g., version.txt, dist/)
         os.system("git add .")
         
@@ -2299,6 +2301,7 @@ def push_to_github(self, version, repo_path):
         os.system("git push origin main")
         
         self.debug_log(f"Pushed build version {version} to GitHub.")
+        write_log(f"Pushed build version {version} to GitHub.")
     finally:
         # Change back to the original working directory
         os.chdir(original_path)
