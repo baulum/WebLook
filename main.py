@@ -26,7 +26,6 @@ from PyQt5.QtWidgets import (
 
 # -----------------------------
 # Original Helper Functions
-# (Modified to remove console input, replaced with PyQt usage)
 # -----------------------------
 ausbilder_modus = False
 last_created_ics = None
@@ -262,11 +261,9 @@ def fetch_timetable_data(url, headers):
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        write_log(response.json)
         return response.json()
     except requests.exceptions.RequestException as e:
         write_log(f"Fehler bei der Anfrage: {e}")
-        
         return None
     except ValueError as e:
         write_log(f"Fehler beim Parsen von JSON: {e}")
@@ -475,47 +472,6 @@ def create_ics_file_for_week(
                 "END:VEVENT"
             ])
             debug_log_func(f"Feiertag hinzugefügt: {hday} ({holiday_name})")
-
-    # Add VEVENT for each lesson
-    # for lesson in sorted_lessons:
-    #     #if debug_mode:
-    #     print(lesson)
-    #     event_start_dt = datetime.datetime.combine(
-    #         lesson["lesson_date"],
-    #         lesson["start_time"]
-    #     )
-    #     event_end_dt = datetime.datetime.combine(
-    #         lesson["lesson_date"],
-    #         lesson["end_time"]
-    #     )
-    #     event_start = event_start_dt.strftime("%Y%m%dT%H%M%S")
-    #     event_end = event_end_dt.strftime("%Y%m%dT%H%M%S")
-    #     event_description = f"{lesson['subjects']} - {lesson['teachers']}"
-        
-
-    #     # Determine summary and description based on lesson type
-    #     if lesson.get("is_exam"):
-    #         summary_line = f"Prüfung {lesson['subject']}"
-    #         description_line = f"{event_description} Prüfung!"
-    #     elif lesson.get("is_additional"):
-    #         summary_line = f"Ersatzstunde {lesson['subject']}"
-    #         description_line = f"{event_description} Ersatz!"
-    #     else:
-    #         summary_line = lesson["subject"]
-    #         description_line = event_description
-
-    #     # Append the VEVENT
-    #     ics_content.extend([
-    #         "BEGIN:VEVENT",
-    #         f"DTSTART:{event_start}",
-    #         f"DTEND:{event_end}",
-    #         f"SUMMARY:{summary_line}",
-    #         f"DESCRIPTION:{description_line}",
-    #         f"LOCATION:{lesson['teacher']}",
-    #         "STATUS:CONFIRMED",
-    #         "END:VEVENT"
-    #     ])
-    #print("ausbildermodus:" + str(ausbilder_modus))
     if not ausbilder_modus:
         write_log(f"Sorted_lessons: {sorted_lessons}") 
         for lesson in sorted_lessons:
