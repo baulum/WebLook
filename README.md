@@ -1,5 +1,4 @@
-[GitHub All Releases](https://img.shields.io/github/downloads/baulum/WebLook/total?style=round-square)
-
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/baulum/WebLook/total?style=plastic)
 
 ### Benutzerhandbuch – WebLook: WebUntis zu Outlook Tool
 
