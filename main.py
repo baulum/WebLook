@@ -1773,8 +1773,8 @@ class AbsencePage(QWidget):
         
         merged_absences = []
         for absence in absences_data:
-            start_date = datetime.strptime(str(absence["startDate"]), "%Y%m%d")
-            end_date = datetime.strptime(str(absence["endDate"]), "%Y%m%d")
+            start_date = datetime.datetime.strptime(str(absence["startDate"]), "%Y%m%d")
+            end_date = datetime.datetime.strptime(str(absence["endDate"]), "%Y%m%d")
             reason = absence["reason"]
             text = absence.get("text", "")
             
