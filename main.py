@@ -13,7 +13,11 @@ import warnings
 import holidays
 import zipfile
 import shutil
+import csv
 import platform
+
+from icalendar import Calendar, Event
+from datetime import timedelta
 
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
 from PyQt5.QtGui import QIcon, QFont, QTextCursor
@@ -991,6 +995,9 @@ class Updater:
 # PyQt5 GUI Implementation
 # -----------------------------
 
+
+
+
 class MainWindow(QMainWindow):
     """A QMainWindow with a sidebar and a central stacked widget
        to display different pages (Main Menu, Settings, Fetch Timetable)."""
@@ -1020,7 +1027,10 @@ class MainWindow(QMainWindow):
         # Create pages
         self.main_menu_page = MainMenuPage(self.config_data, self)
         self.fetch_page = FetchTimetablePage(self.config_data, self)
+        self.abscence_page = AbsencePage(self.config_data, self)
         self.bug_report_page = BugReportPage(self.config_data, self)
+        
+        
         #self.fetch_page.log_text.setVisible(True)
         
         
@@ -1030,7 +1040,10 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.main_menu_page)   # index 0
         self.stacked_widget.addWidget(self.settings_page)    # index 1
         self.stacked_widget.addWidget(self.fetch_page)       # index 2
+        
         self.stacked_widget.addWidget(self.bug_report_page) # index 3
+
+        self.stacked_widget.addWidget(self.abscence_page)      #index 4
         
         # Set central widget
         self.setCentralWidget(central_widget)
@@ -1103,6 +1116,9 @@ class MainWindow(QMainWindow):
         btn_fetch.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
         layout.addWidget(btn_fetch)
 
+
+        
+
         btn_settings = QPushButton("Einstellungen")
         btn_settings.setIcon(QIcon("./assets/icons/inverted/setting_inverted.png"))
         btn_settings.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
@@ -1110,11 +1126,14 @@ class MainWindow(QMainWindow):
 
         btn_bug_reporter = QPushButton("Bug Report")
         btn_bug_reporter.setIcon(QIcon("./assets/icons/inverted/bug_report_inverted.png"))
-        btn_bug_reporter.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(3))
+        btn_bug_reporter.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(4))
         layout.addWidget(btn_bug_reporter)
-        
-       
 
+        btn_abscence = QPushButton("Abwesenheiten")
+        btn_abscence.setIcon(QIcon("./assets/icons/inverted/timetable_inverted.png"))
+        btn_abscence.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(4))
+        layout.addWidget(btn_abscence)
+        
         layout.addStretch()  # push everything up
 
         return frame
@@ -1458,8 +1477,329 @@ class SettingsPage(QWidget):
             #print(key + ": " + new_val)
         QMessageBox.information(self, "Einstellungen", "Die Einstellungen wurden erfolgreich gespeichert!")
         self.refresh()
+# class AbsencePage(QWidget):
+#     def __init__(self, config_data, parent=None):
+#         super().__init__(parent)
+#         self.config_data = config_data
+#         self.main_layout = QVBoxLayout(self)
+        
+#         title = QLabel("Fehlzeiten abrufen")
+#         font = QFont()
+#         font.setPointSize(16)
+#         font.setBold(True)
+#         title.setFont(font)
+#         self.main_layout.addWidget(title)
+        
+#         self.debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+        
+#         # Fetch Button
+#         self.fetch_absences_btn = QPushButton("Fehlzeiten abrufen")
+#         self.fetch_absences_btn.clicked.connect(self.run_fetch_absences)
+#         self.main_layout.addWidget(self.fetch_absences_btn)
+        
+#         self.log_text = QTextEdit()
+#         self.log_text.setReadOnly(True)
+#         self.main_layout.addWidget(self.log_text)
+#         self.log_text.setVisible(self.debug_mode)
+        
+#         self.setLayout(self.main_layout)
+        
+#     def debug_log(self, msg):
+#         if self.debug_mode:
+#             self.log_text.append(msg)
+
+#     def run_fetch_absences(self):
+#         try:
+#             self.debug_log("Starte Abruf der Fehlzeiten...")
+#             self.refresh()
+            
+#             name = self.config_data.get("Name", "").strip()
+#             email = self.config_data.get("Email", "").strip()
+#             username = self.config_data.get("Username", "").strip()
+#             password = self.config_data.get("Passwort", "").strip()
+            
+#             if not name or not email:
+#                 QMessageBox.warning(self, "Fehlende Angaben", "Bitte Name und Email in den Einstellungen eintragen.")
+#                 return
+            
+#             session = requests.Session()
+            
+#             city = self.config_data.get("Stadt/Adresse", "").strip()
+#             if not city:
+#                 QMessageBox.warning(self, "Stadt fehlt", "Bitte geben Sie eine Stadt ein.")
+#                 return
+            
+#             self.debug_log(f"Suche Schulen für Stadt: {city}")
+#             schools = get_schools(city, self.debug_mode)
+            
+#             if not schools:
+#                 QMessageBox.warning(self, "Keine Schule gefunden", "Keine Schule für die angegebene Stadt gefunden.")
+#                 return
+#             ##BUG: Selects first school should select preset instead
+#             schulnummer = int(self.config_data.get("Schulnummer", "0"))
+#             school = schools[schulnummer]  # Assume the first result is correct
+#             server = school["server"]
+#             login_name = school["loginSchool"]
+            
+#             # Step 1: Perform GET request
+#             init_url = f"https://{server}/WebUntis/?school={login_name}"
+#             r1 = session.get(init_url)
+            
+#             jsession_id = session.cookies.get("JSESSIONID")
+#             trace_id = session.cookies.get("traceId")
+#             tenant_id = session.cookies.get("Tenant-Id", school.get("tenantId", ""))
+            
+#             xcsrf_token = get_x_crsf_token(server, login_name, school, jsession_id, trace_id, self.debug_mode)
+            
+#             # Step 2: Perform login
+#             # post_url = f"https://{server}/WebUntis/j_spring_security_check"
+#             # login_params = {
+#             #     "school": login_name,
+#             #     "j_username": username,
+#             #     "j_password": password,
+#             #     "token": ""
+#             # }
+#             #headers = get_headers(tenant_id, school["loginName"], login_name, server, jsession_id, trace_id, xcsrf_token, "get_login_headers")
 
 
+#             post_url = f"https://{school['server']}/WebUntis/j_spring_security_check"
+#             login_params = {
+#                 "school": school["loginSchool"],
+#                 "j_username": username,
+#                 "j_password": password,
+#                 "token": ""
+#             }
+#             headers = get_headers(
+#                 tenant_id=tenant_id,
+#                 schoolname=school["loginName"],
+#                 login_name=school["loginSchool"],
+#                 server=school["server"],
+#                 jsession_id=jsession_id,
+#                 trace_id=trace_id,
+#                 xcsrf_token=xcsrf_token,
+#                 method="get_login_headers"
+#             )
+
+#             r2 = session.post(post_url, params=login_params, headers=headers)
+            
+#             #r2 = session.post(post_url, params=login_params, headers=headers)
+#             data = r2.json()
+            
+#             if "loginError" in data:
+#                 QMessageBox.critical(self, "Login Fehler", "Login fehlgeschlagen. Zugangsdaten überprüfen.")
+#                 return
+            
+
+#             # Step 3: GET sleek product:       ---> not needed
+
+            
+#             # Step 4: Fetch absences data
+#             absences_url = f"https://{server}/WebUntis/api/classreg/absences/students?startDate=20240910&endDate=20250731&studentId=30325&excuseStatusId=-1"
+#             #headers["Authorization"] = f"Bearer {session.cookies.get('Authorization')}"
+#             r3 = session.get(absences_url, headers=headers)
+#             absences_data = r3.json()
+
+#             with open("abscences.log", "a", encoding="utf-8") as file:
+#                 file.write(f"{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} - {absences_url}\n")
+#                 file.write(json.dumps(absences_data, indent=4))
+            
+#             if not absences_data:
+#                 QMessageBox.information(self, "Keine Fehlzeiten", "Keine Fehlzeiten gefunden.")
+#                 return
+            
+#             file_path = self.create_absences_csv(absences_data)
+#             if file_path:
+#                 ret = QMessageBox.question(self, "Öffnen?", "CSV-Datei erfolgreich erstellt. Datei öffnen?", QMessageBox.Yes | QMessageBox.No)
+#                 if ret == QMessageBox.Yes:
+#                     os.startfile(file_path)
+                    
+#         except Exception as e:
+#             self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
+#             QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten.")
+    
+#     def create_absences_csv(self, absences_data):
+#         file_path = "absences.csv"
+#         with open(file_path, "w", newline="", encoding="utf-8") as f:
+#             writer = csv.writer(f)
+#             writer.writerow(["Datum", "Fach", "Lehrer", "Grund"])
+#             for absence in absences_data:
+#                 writer.writerow([absence["date"], absence["subject"], absence["teacher"], absence["reason"]])
+#         return file_path
+    
+#     def refresh(self):
+#         self.config_data = read_config_env()
+#         self.debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+#         self.log_text.setVisible(self.debug_mode)
+    
+#     def create_absences_csv(self, absences_data):
+#         file_path = "absences.csv"
+#         with open(file_path, "w", newline="", encoding="utf-8") as f:
+#             writer = csv.writer(f)
+#             writer.writerow(["Datum", "Fach", "Lehrer", "Grund"])
+#             for absence in absences_data:
+#                 writer.writerow([absence["date"], absence["subject"], absence["teacher"], absence["reason"]])
+#         return file_path
+    
+#     def refresh(self):
+#         self.config_data = read_config_env()
+#         self.debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+#         self.log_text.setVisible(self.debug_mode)
+
+class AbsencePage(QWidget):
+    def __init__(self, config_data, parent=None):
+        super().__init__(parent)
+        self.config_data = config_data
+        self.main_layout = QVBoxLayout(self)
+        
+        title = QLabel("Fehlzeiten abrufen")
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+        title.setFont(font)
+        self.main_layout.addWidget(title)
+        
+        self.debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+        
+        # Fetch Button
+        self.fetch_absences_btn = QPushButton("Fehlzeiten abrufen")
+        self.fetch_absences_btn.clicked.connect(self.run_fetch_absences)
+        self.main_layout.addWidget(self.fetch_absences_btn)
+        
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.main_layout.addWidget(self.log_text)
+        self.log_text.setVisible(self.debug_mode)
+        
+        self.setLayout(self.main_layout)
+        
+    def debug_log(self, msg):
+        if self.debug_mode:
+            self.log_text.append(msg)
+
+    def run_fetch_absences(self):
+        try:
+            self.debug_log("Starte Abruf der Fehlzeiten...")
+            self.refresh()
+            
+            name = self.config_data.get("Name", "").strip()
+            email = self.config_data.get("Email", "").strip()
+            username = self.config_data.get("Username", "").strip()
+            password = self.config_data.get("Passwort", "").strip()
+            
+            if not name or not email:
+                QMessageBox.warning(self, "Fehlende Angaben", "Bitte Name und Email in den Einstellungen eintragen.")
+                return
+            
+            session = requests.Session()
+            
+            city = self.config_data.get("Stadt/Adresse", "").strip()
+            if not city:
+                QMessageBox.warning(self, "Stadt fehlt", "Bitte geben Sie eine Stadt ein.")
+                return
+            
+            self.debug_log(f"Suche Schulen für Stadt: {city}")
+            schools = get_schools(city, self.debug_mode)
+            
+            if not schools:
+                QMessageBox.warning(self, "Keine Schule gefunden", "Keine Schule für die angegebene Stadt gefunden.")
+                return
+
+
+            schulnummer = int(self.config_data.get("Schulnummer", "0"))
+            school = schools[schulnummer]  # Assume the first result is correct
+            server = school["server"]
+            login_name = school["loginSchool"]
+            
+            # Step 1: Perform GET request
+            init_url = f"https://{server}/WebUntis/?school={login_name}"
+            r1 = session.get(init_url)
+            
+            jsession_id = session.cookies.get("JSESSIONID")
+            trace_id = session.cookies.get("traceId")
+            tenant_id = session.cookies.get("Tenant-Id", school.get("tenantId", ""))
+            
+            xcsrf_token = get_x_crsf_token(server, login_name, school, jsession_id, trace_id, self.debug_mode)
+            
+            # Step 2: Perform login
+            post_url = f"https://{school['server']}/WebUntis/j_spring_security_check"
+            login_params = {
+                "school": school["loginSchool"],
+                "j_username": username,
+                "j_password": password,
+                "token": ""
+            }
+            headers = get_headers(
+                tenant_id=tenant_id,
+                schoolname=school["loginName"],
+                login_name=school["loginSchool"],
+                server=school["server"],
+                jsession_id=jsession_id,
+                trace_id=trace_id,
+                xcsrf_token=xcsrf_token,
+                method="get_login_headers"
+            )
+
+            r2 = session.post(post_url, params=login_params, headers=headers)
+            data = r2.json()
+            
+            if "loginError" in data:
+                QMessageBox.critical(self, "Login Fehler", "Login fehlgeschlagen. Zugangsdaten überprüfen.")
+                return
+            
+            # Step 3: Fetch absences data
+            absences_url = f"https://{server}/WebUntis/api/classreg/absences/students?startDate=20240910&endDate=20250731&studentId=30325&excuseStatusId=-1"
+            #headers["Authorization"] = f"Bearer {session.cookies.get('Authorization')}"
+            r3 = session.get(absences_url, headers=headers)
+            absences_data = r3.json()
+            
+            if not absences_data.get("data", {}).get("absences", []):
+                QMessageBox.information(self, "Keine Fehlzeiten", "Keine Fehlzeiten gefunden.")
+                return
+            
+            self.create_absences_ics(absences_data["data"]["absences"])
+            QMessageBox.information(self, "Erfolg", "ICS-Datei mit Fehlzeiten wurde erstellt.")
+            # if file_path:
+            #     ret = QMessageBox.question(self, "Öffnen?", "CSV-Datei erfolgreich erstellt. Datei öffnen?", QMessageBox.Yes | QMessageBox.No)
+            #     if ret == QMessageBox.Yes:
+            #         os.startfile(file_path)
+                    
+        except Exception as e:
+            self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
+            QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten.")
+    
+    def create_absences_ics(self, absences_data):
+        cal = Calendar()
+        absences_data.sort(key=lambda x: x["startDate"])
+        
+        merged_absences = []
+        for absence in absences_data:
+            start_date = datetime.strptime(str(absence["startDate"]), "%Y%m%d")
+            end_date = datetime.strptime(str(absence["endDate"]), "%Y%m%d")
+            reason = absence["reason"]
+            text = absence.get("text", "")
+            
+            if merged_absences and merged_absences[-1]["reason"] == reason and merged_absences[-1]["end_date"] == start_date - timedelta(days=1):
+                merged_absences[-1]["end_date"] = end_date
+            else:
+                merged_absences.append({"start_date": start_date, "end_date": end_date, "reason": reason, "text": text})
+        
+        for absence in merged_absences:
+            event = Event()
+            event.add("summary", f"Abwesenheit: {absence['reason']}")
+            event.add("dtstart", absence["start_date"])
+            event.add("dtend", absence["end_date"] + timedelta(days=1))
+            event.add("description", absence["text"])
+            cal.add_component(event)
+        
+        file_path = "absences.ics"
+        with open(file_path, "wb") as f:
+            f.write(cal.to_ical())
+
+    
+    def refresh(self):
+        self.config_data = read_config_env()
+        self.debug_mode = self.config_data.get("Debugging", "False").lower() == "true"
+        self.log_text.setVisible(self.debug_mode)
 
 
 
@@ -1469,7 +1809,7 @@ class FetchTimetablePage(QWidget):
         super().__init__(parent)
         self.config_data = config_data
         self.log_text_visible = False
-        #ausbilder_modus = self.config_data["Ausbildermodus"]
+        ausbilder_modus = self.config_data["Ausbildermodus"]
         #print(ausbilder_modus)
         self.main_layout = QVBoxLayout(self)
         title = QLabel("Stundenplan abrufen")

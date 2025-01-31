@@ -19,3 +19,6 @@ neuburg_ec10.txt
 main.spec
 .spec
 .gitignore
+abscences.log
+absences.csv
+absences.ics
