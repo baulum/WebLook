@@ -20,11 +20,11 @@ from icalendar import Calendar, Event
 from datetime import timedelta
 
 from PyQt5.QtCore import Qt, QSize, pyqtSignal
-from PyQt5.QtGui import QIcon, QFont, QTextCursor
+from PyQt5.QtGui import QIcon, QFont, QTextCursor, QPixmap
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QFileDialog, 
     QPushButton, QLabel, QStackedWidget, QSpacerItem, QLineEdit, QTextEdit, QSpinBox,
-    QMessageBox, QScrollArea, QFrame, QStyle, QGridLayout, QSizePolicy, QComboBox, QCheckBox, QFileDialog
+    QMessageBox, QScrollArea, QFrame, QStyle, QGridLayout, QSizePolicy, QComboBox, QCheckBox, QFileDialog, QTableWidget, QTableWidgetItem, QHeaderView
 )
 
 
@@ -1037,13 +1037,17 @@ class MainWindow(QMainWindow):
         self.settings_page = SettingsPage(self.config_data, self)
         self.stacked_widget.currentChanged.connect(self.on_page_switch)
         # Add pages to stacked widget
-        self.stacked_widget.addWidget(self.main_menu_page)   # index 0
-        self.stacked_widget.addWidget(self.settings_page)    # index 1
-        self.stacked_widget.addWidget(self.fetch_page)       # index 2
+        self.stacked_widget.addWidget(self.main_menu_page)      # index 0
         
-        self.stacked_widget.addWidget(self.bug_report_page) # index 3
+        self.stacked_widget.addWidget(self.fetch_page)          # index 1
 
-        self.stacked_widget.addWidget(self.abscence_page)      #index 4
+        self.stacked_widget.addWidget(self.abscence_page)       #index 2
+
+        self.stacked_widget.addWidget(self.settings_page)       # index 3
+
+        self.stacked_widget.addWidget(self.bug_report_page)     # index 4
+
+        
         
         # Set central widget
         self.setCentralWidget(central_widget)
@@ -1113,26 +1117,23 @@ class MainWindow(QMainWindow):
 
         btn_fetch = QPushButton("Stundenplan")
         btn_fetch.setIcon(QIcon("./assets/icons/inverted/timetable_inverted.png"))
-        btn_fetch.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
+        btn_fetch.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
         layout.addWidget(btn_fetch)
 
-
-        
+        btn_abscence = QPushButton("Abwesenheiten")
+        btn_abscence.setIcon(QIcon("./assets/icons/inverted/timetable_inverted.png"))
+        btn_abscence.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
+        layout.addWidget(btn_abscence)
 
         btn_settings = QPushButton("Einstellungen")
         btn_settings.setIcon(QIcon("./assets/icons/inverted/setting_inverted.png"))
-        btn_settings.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
+        btn_settings.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(3))
         layout.addWidget(btn_settings)
 
         btn_bug_reporter = QPushButton("Bug Report")
         btn_bug_reporter.setIcon(QIcon("./assets/icons/inverted/bug_report_inverted.png"))
         btn_bug_reporter.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(4))
         layout.addWidget(btn_bug_reporter)
-
-        btn_abscence = QPushButton("Abwesenheiten")
-        btn_abscence.setIcon(QIcon("./assets/icons/inverted/timetable_inverted.png"))
-        btn_abscence.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(4))
-        layout.addWidget(btn_abscence)
         
         layout.addStretch()  # push everything up
 
@@ -1193,6 +1194,7 @@ class MainWindow(QMainWindow):
             font-size: 14px;
             min-height: 23px;
         }
+        
 
         /* Dark background for scroll area contents */
         QScrollArea {
@@ -1246,6 +1248,79 @@ class MainWindow(QMainWindow):
             selection-background-color: #555;
             selection-color: #fff;
         }
+        
+        /* QTableWidget Styling */
+        QTableWidget {
+            background-color: #2B2B2B;
+            color: #ddd;
+            gridline-color: #444;
+            border: 1px solid #555;
+            font-size: 14px;
+        }
+
+        /* Header Styling */
+        QHeaderView {
+            background-color: #2B2B2B; /* Matches the table's background */
+            border: 1px solid #555;   /* Matches table border */
+        }
+
+        QHeaderView::section {
+            background-color: #444;
+            color: #ddd;
+            padding: 5px;
+            border: 1px solid #555;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        /* Remove the white bar (default margin) */
+        QHeaderView::section:horizontal {
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Alternating Row Colors */
+        QTableWidget::item {
+            background-color: #333;
+            color: #ddd;
+            padding: 5px;
+        }
+
+        /* Selected Item */
+        QTableWidget::item:selected {
+            background-color: #555;
+            color: white;
+        }
+
+        /* Scrollbar for Table */
+        QScrollBar:vertical {
+            background: #2B2B2B;
+            width: 10px;
+        }
+
+        QScrollBar::handle:vertical {
+            background: #555;
+            min-height: 20px;
+        }
+
+        QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+            background: none;
+        }
+
+        QScrollBar:horizontal {
+            background: #2B2B2B;
+            height: 10px;
+        }
+
+        QScrollBar::handle:horizontal {
+            background: #555;
+            min-width: 20px;
+        }
+
+        QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+            background: none;
+        }
+
         """
 
 class MainMenuPage(QWidget):
@@ -1670,13 +1745,153 @@ class AbsencePage(QWidget):
         self.main_layout.addWidget(self.log_text)
         self.log_text.setVisible(self.debug_mode)
         
+        # Table for displaying absences
+        self.absences_table = QTableWidget()
+        self.absences_table.setColumnCount(6)
+        self.absences_table.setHorizontalHeaderLabels(["Start Datum", "End Datum", "Startzeit", "Endzeit", "Grund", "Schüler"])
+        # Stretch columns to fit available space
+        self.absences_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.main_layout.addWidget(self.absences_table)
+
+        # Add a spacer to maintain layout when log_text is hidden
+        self.spacer = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.main_layout.addItem(self.spacer)
+        
         self.setLayout(self.main_layout)
+        self.load_absences()
         
     def debug_log(self, msg):
         if self.debug_mode:
             self.log_text.append(msg)
+    
+    def load_absences(self):
+        student_name_path = self.config_data.get("StudentNamePath", "unknown_student")
+        #file_path = f"./assets/abwesenheiten/azubi_{student_name_path}_abwesenheiten.json"
+        file_path = "./kalender/azubi_abwesenheiten.json"
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as file:
+                absences_data = json.load(file)
+                self.populate_absences_table(absences_data)
+    
+    def save_absences(self, absences_data, student_name_path):
+        #file_path = f"./assets/abwesenheiten/azubi_{student_name_path}_abwesenheiten.json"
+        file_path = "./kalender/azubi_abwesenheiten.json"
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(absences_data, file, indent=4)
+
+    def set_header_sort_icons(self):
+
+        header = self.absences_table.horizontalHeader()
+
+        def update_sort_icons(logical_index):
+            for i in range(self.absences_table.columnCount()):
+                if i == logical_index:
+                    if header.sortIndicatorOrder() == 0:  # Ascending
+                        icon = QIcon(QPixmap("./assets/icons/inverted/ascending_inverted.png"))
+                    else:  # Descending
+                        icon = QIcon(QPixmap("./assets/icons/inverted/descending_inverted.png"))
+                    header.setSortIndicatorShown(True)
+                else:
+                    header.setSortIndicatorShown(False)
+
+        header.sectionClicked.connect(update_sort_icons)
+
+        # header = self.absences_table.horizontalHeader()
+
+        # def update_sort_icons(logical_index):
+        #     for i in range(self.absences_table.columnCount()):
+        #         if i == logical_index:
+        #             if header.sortIndicatorOrder() == 0:  # Ascending
+        #                 icon = QIcon(QPixmap("./assets/icons/inverted/ascending_inverted.png"))
+        #             else:  # Descending
+        #                 icon = QIcon(QPixmap("./assets/icons/inverted/descending_inverted.png"))
+        #             header.setSortIndicatorShown(True)
+        #             header.setSectionResizeMode(i, QHeaderView.Stretch)
+        #             header.setIcon(i, icon)
+        #         else:
+        #             header.setIcon(i, QIcon())
+
+        # header.sectionClicked.connect(update_sort_icons)
+
+    def populate_absences_table(self, absences_data):
+        absences = absences_data.get("data", {}).get("absences", [])
+        self.absences_table.setRowCount(len(absences))
+
+        # Stretch columns to fit available space
+        self.absences_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        # Enable sorting
+        self.absences_table.setSortingEnabled(True)
+
+        # Remove top-left white corner
+        self.absences_table.setCornerButtonEnabled(False)
+        self.absences_table.verticalHeader().setVisible(False)
+
+        # Set custom sort icons for the headers
+        #self.set_header_sort_icons()
+
+        
+        for row, absence in enumerate(absences):
+            start_date = self.format_date(absence.get("startDate", "N/A"))
+            end_date = self.format_date(absence.get("endDate", "N/A"))
+            start_time = self.format_time(absence.get("startTime", "N/A"))
+            end_time = self.format_time(absence.get("endTime", "N/A"))
+            reason = absence.get("reason", "Unbekannt")
+            student_name = absence.get("studentName", "N/A")
+            
+            self.absences_table.setItem(row, 0, QTableWidgetItem(start_date))
+            self.absences_table.setItem(row, 1, QTableWidgetItem(end_date))
+            self.absences_table.setItem(row, 2, QTableWidgetItem(start_time))
+            self.absences_table.setItem(row, 3, QTableWidgetItem(end_time))
+            self.absences_table.setItem(row, 4, QTableWidgetItem(reason))
+            self.absences_table.setItem(row, 5, QTableWidgetItem(student_name))
+
+    def format_date(self, date_str):
+        try:
+            return datetime.datetime.strptime(str(date_str), "%Y%m%d").strftime("%d.%m.%Y")
+        except ValueError:
+            return "N/A"
+
+    def format_time(self, time_str):
+        try:
+            return f"{int(time_str) // 100:02d}:{int(time_str) % 100:02d}"
+        except ValueError:
+            return "N/A"
+
+    # def populate_absences_table(self, absences_data):
+    #     self.absences_table.setRowCount(len(absences_data))
+    #     for row, absence in enumerate(absences_data):
+    #         print(absence)
+    #         self.absences_table.setItem(row, 0, QTableWidgetItem((absence["startDate"])))
+    #         self.absences_table.setItem(row, 1, QTableWidgetItem((absence["endDate"])))
+    #         self.absences_table.setItem(row, 2, QTableWidgetItem((absence["startTime"])))
+    #         self.absences_table.setItem(row, 3, QTableWidgetItem((absence["endTime"])))
+    #         self.absences_table.setItem(row, 4, QTableWidgetItem(absence["reason"]))
 
     def run_fetch_absences(self):
+        try:
+            self.debug_log("Starte Abruf der Fehlzeiten...")
+            self.refresh()
+            
+            # Fetch necessary authentication and student details
+            student_name_path = "example_student"  # Placeholder, should be dynamically retrieved
+            absences_data = self.fetch_absence_data()
+            print(absences_data)
+            
+            if absences_data:
+                self.save_absences(absences_data, student_name_path)
+                self.populate_absences_table(absences_data)
+                QMessageBox.information(self, "Erfolg", "Fehlzeiten wurden erfolgreich gespeichert und angezeigt.")
+            else:
+                QMessageBox.information(self, "Keine Fehlzeiten", "Keine Fehlzeiten gefunden.")
+                
+        except Exception as e:
+            self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
+            QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten.")
+
+
+    def fetch_absence_data(self):
         try:
             self.debug_log("Starte Abruf der Fehlzeiten...")
             self.refresh()
@@ -1746,8 +1961,44 @@ class AbsencePage(QWidget):
                 QMessageBox.critical(self, "Login Fehler", "Login fehlgeschlagen. Zugangsdaten überprüfen.")
                 return
             
-            # Step 3: Fetch absences data
-            absences_url = f"https://{server}/WebUntis/api/classreg/absences/students?startDate=20240910&endDate=20250731&studentId=30325&excuseStatusId=-1"
+
+
+            # Step 3: Fetch bearer token
+            bearer_url = f'https://{school["server"]}/WebUntis/api/token/new'
+            r3 = session.get(bearer_url, headers=headers)
+            bearer_token = r3.text.strip()
+
+            # Step 4: Fetch student data
+            student_info_url = f'https://{school["server"]}/WebUntis/api/rest/view/v1/app/data'
+            student_headers = headers | {"Authorization": f"Bearer {bearer_token}"}
+            r4 = session.get(student_info_url, headers=student_headers)
+            try:
+                student_info = r4.json()
+                    
+                if debug_mode:    
+                    self.debug_log("StudentInfo: " + str(student_info)[:300])
+                # student_name = student_info['user']['person']['displayName']
+                # student_name_path = "_".join(student_name.split(" "))
+                self.debug_log(f"Student Name: {student_info['user']['person']['displayName']}, ID: {student_info['user']['person']['id']}")
+            except Exception as e:
+                self.debug_log(f"Fehler beim Abrufen der Studentendaten: {e}")
+                student_info = None
+
+            # Determine class ID only if not already set
+            if student_info:
+                write_log(f"Student Info: {student_info}")
+                student_id = student_info["user"]["person"]["id"]
+
+                student_name = student_info['user']['person']['displayName']
+                student_name_path = "_".join(student_name.split(" "))
+
+                start_current_school_year = "".join(student_info["currentSchoolYear"]["dateRange"]["start"].split("-"))
+                end_current_school_year = "".join(student_info["currentSchoolYear"]["dateRange"]["end"].split("-"))
+            else:
+                student_id = None    
+            
+            # Step 5: Fetch absences data
+            absences_url = f"https://{server}/WebUntis/api/classreg/absences/students?startDate={start_current_school_year}&endDate={end_current_school_year}&studentId={student_id}&excuseStatusId=-1"
             #headers["Authorization"] = f"Bearer {session.cookies.get('Authorization')}"
             r3 = session.get(absences_url, headers=headers)
             absences_data = r3.json()
@@ -1756,18 +2007,19 @@ class AbsencePage(QWidget):
                 QMessageBox.information(self, "Keine Fehlzeiten", "Keine Fehlzeiten gefunden.")
                 return
             
-            self.create_absences_ics(absences_data["data"]["absences"])
-            QMessageBox.information(self, "Erfolg", "ICS-Datei mit Fehlzeiten wurde erstellt.")
-            # if file_path:
-            #     ret = QMessageBox.question(self, "Öffnen?", "CSV-Datei erfolgreich erstellt. Datei öffnen?", QMessageBox.Yes | QMessageBox.No)
-            #     if ret == QMessageBox.Yes:
-            #         os.startfile(file_path)
+            file_path = self.create_absences_ics(absences_data=absences_data["data"]["absences"], student_name_path=student_name_path)
+            print(file_path)
+            if file_path:
+                ret = QMessageBox.question(self, "Öffnen?", "CSV-Datei erfolgreich erstellt. Datei öffnen?", QMessageBox.Yes | QMessageBox.No)
+                if ret == QMessageBox.Yes:
+                    os.startfile(file_path)
+            return absences_data
                     
         except Exception as e:
             self.debug_log(f"Ein Fehler ist aufgetreten: {e}")
             QMessageBox.critical(self, "Fehler", "Ein unerwarteter Fehler ist aufgetreten.")
     
-    def create_absences_ics(self, absences_data):
+    def create_absences_ics(self, absences_data, student_name_path):
         cal = Calendar()
         absences_data.sort(key=lambda x: x["startDate"])
         
@@ -1790,10 +2042,11 @@ class AbsencePage(QWidget):
             event.add("dtend", absence["end_date"] + timedelta(days=1))
             event.add("description", absence["text"])
             cal.add_component(event)
-        
-        file_path = "absences.ics"
+        pathname = os.path.dirname(sys.argv[0])
+        file_path = f"{pathname}/kalender/azubi_abwesenheiten.ics"
         with open(file_path, "wb") as f:
             f.write(cal.to_ical())
+        return file_path
 
     
     def refresh(self):
