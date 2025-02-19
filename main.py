@@ -1747,10 +1747,11 @@ class AbsencePage(QWidget):
         
         # Table for displaying absences
         self.absences_table = QTableWidget()
-        self.absences_table.setColumnCount(6)
-        self.absences_table.setHorizontalHeaderLabels(["Start Datum", "End Datum", "Startzeit", "Endzeit", "Grund", "Schüler"])
+        self.absences_table.setColumnCount(7)
+        self.absences_table.setHorizontalHeaderLabels(["Start Datum", "End Datum", "Startzeit", "Endzeit", "Grund", "Status", "Schüler"])
         # Stretch columns to fit available space
         self.absences_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        #self.absences_table.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.main_layout.addWidget(self.absences_table)
 
         # Add a spacer to maintain layout when log_text is hidden
@@ -1838,6 +1839,10 @@ class AbsencePage(QWidget):
             start_time = self.format_time(absence.get("startTime", "N/A"))
             end_time = self.format_time(absence.get("endTime", "N/A"))
             reason = absence.get("reason", "Unbekannt")
+            #unentschuldigt = absence.get("unentschuldigt", "N/A")
+            excuse_status = absence.get("excuseStatus", "N/A")
+            if excuse_status == None or excuse_status == "null":
+                excuse_status = "Unentschuldigt"
             student_name = absence.get("studentName", "N/A")
             
             self.absences_table.setItem(row, 0, QTableWidgetItem(start_date))
@@ -1845,7 +1850,9 @@ class AbsencePage(QWidget):
             self.absences_table.setItem(row, 2, QTableWidgetItem(start_time))
             self.absences_table.setItem(row, 3, QTableWidgetItem(end_time))
             self.absences_table.setItem(row, 4, QTableWidgetItem(reason))
-            self.absences_table.setItem(row, 5, QTableWidgetItem(student_name))
+            self.absences_table.setItem(row, 5, QTableWidgetItem(excuse_status))
+            #self.absences_table.setItem(row, 5, QTableWidgetItem(unentschuldigt))
+            self.absences_table.setItem(row, 6, QTableWidgetItem(student_name))
 
     def format_date(self, date_str):
         try:
@@ -2043,7 +2050,9 @@ class AbsencePage(QWidget):
             event.add("description", absence["text"])
             cal.add_component(event)
         pathname = os.path.dirname(sys.argv[0])
-        file_path = f"{pathname}/kalender/azubi_abwesenheiten.ics"
+        #file_path = f"{pathname}/kalender/azubi_abwesenheiten.ics"
+        file_path = f"./kalender/azubi_abwesenheiten.ics"
+        print(file_path)
         with open(file_path, "wb") as f:
             f.write(cal.to_ical())
         return file_path
@@ -2806,7 +2815,8 @@ def main():
     current_version = ""
     with open("./assets/version.txt", "r") as file:
             current_version = file.readline().strip()
-    warnings.filterwarnings("ignore", category=DeprecationWarning, module='PyQt5')
+    #.filterwarnings("ignore", category=DeprecationWarning, module='PyQt5')
+    warnings.simplefilter("ignore", category=DeprecationWarning)
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
